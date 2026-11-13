@@ -45,10 +45,10 @@ class Chunk(Base):
 
     content: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(768), nullable=True)
+    search_vector: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_col: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
 
     document: Mapped["Document"] = relationship(back_populates="chunks")
-
