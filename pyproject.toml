@@ -47,3 +47,5 @@ ignore_missing_imports = true
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_default_fixture_loop_scope = "function"
+[tool.ruff.lint.per-file-ignores]
+"src/rag/api/main.py" = ["B008"]
