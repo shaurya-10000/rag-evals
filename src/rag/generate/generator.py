@@ -1,15 +1,27 @@
+import logging
+
 from google import genai
+from google.genai import types
 
 from rag.config.settings import settings
 from rag.db_models import Chunk
 
+logger = logging.getLogger(__name__)
 
 class Generator:
-    def __init__(self, model: str = "gemini-2.5-flash", mock: bool = False):
-        self.model = model
+    def __init__(self, mock: bool = False):
         self.mock = mock
+        # Hierarchical fallback list (Best -> Fast -> Fallback)
+        self.models = [
+            "gemini-3.8-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.6-flash"
+        ]
         if not mock:
-            self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+            self.client = genai.Client(
+                api_key=settings.GEMINI_API_KEY,
+                http_options=types.HttpOptions(timeout=15000)
+            )
 
     def generate_answer(self, query: str, chunks: list[Chunk]) -> str:
         '''Generate an answer using the retrieved chunks as context.'''
@@ -36,9 +48,22 @@ Context:
 Question: {query}
 Answer:"""
 
-        # 3. Call Gemini
-        response = self.client.models.generate_content(
-            model=self.model,
-            contents=prompt,
-        )
-        return response.text or "Error: No response generated."
+        # 3. Try models in order (Fallback pattern)
+        for model in self.models:
+            try:
+                print(f"Attempting generation with {model}...")
+                response = self.client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                )
+                if response.text:
+                    print(f"Success with {model}!")
+                    return response.text
+            except Exception as e:
+                # If it fails (503, 429, 404), log it and try the next model
+                print(f"Model {model} failed: {str(e)}. Falling back...")
+                logger.warning(f"Model {model} failed: {e}")
+                continue
+        
+        # If all models fail
+        return "Error: All LLM models are currently unavailable. Please try again later."
