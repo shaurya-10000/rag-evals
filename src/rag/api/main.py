@@ -19,6 +19,8 @@ logger = logging.getLogger("rag.api")
 
 app = FastAPI(title="RAG Evals API", version="0.1.0")
 
+RERANK_CANDIDATES = int(os.getenv("RERANK_CANDIDATES", "10"))
+
 
 @lru_cache(maxsize=1)
 def get_embedder() -> Embedder:
@@ -67,7 +69,7 @@ def query(
 
     # 1. Retrieve 20 candidates via Hybrid Search (embed + vector + keyword + RRF)
     retriever = Retriever(db=db, embedder=embedder)
-    candidates = retriever.search(query=request.query, top_k=20)
+    candidates = retriever.search(query=request.query, top_k=RERANK_CANDIDATES)
     t_retrieve = time.perf_counter()
 
     # 2. Rerank down to the best top_k

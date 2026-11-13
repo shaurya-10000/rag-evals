@@ -25,6 +25,7 @@ class Reranker:
             self._model = TextCrossEncoder(
                 model_name=self.model_name,
                 cache_dir=os.getenv("FASTEMBED_CACHE_PATH"),
+                threads=int(os.getenv("RERANK_THREADS", "1")),
             )
         return self._model
 
