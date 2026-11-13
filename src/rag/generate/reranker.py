@@ -11,11 +11,10 @@ class Reranker:
     ):
         self.mock = mock
         self.model_name = model_name
-        self._model = None  # <--- LAZY LOADING: Do not load on startup
+        self._model: CrossEncoder | None = None
 
-    def _get_model(self):
+    def _get_model(self) -> CrossEncoder:
         if self._model is None:
-            # device='cpu' ensures we don't try to load GPU drivers (saves memory)
             self._model = CrossEncoder(self.model_name, device="cpu")
         return self._model
 
@@ -25,8 +24,9 @@ class Reranker:
 
         model = self._get_model()
         pairs = [[query, chunk.content] for chunk in chunks]
-        scores = model.predict(pairs)
+        scores = model.predict(pairs)  # type: ignore[arg-type]
 
         scored_chunks = list(zip(chunks, scores, strict=False))
         scored_chunks.sort(key=lambda x: x[1], reverse=True)
         return [chunk for chunk, score in scored_chunks[:top_k]]
+

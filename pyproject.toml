@@ -17,7 +17,6 @@ dependencies = [
     "psycopg[binary]>=3.1.0",
     "pgvector>=0.2.6",
     "alembic>=1.13.0",
-    
     "google-genai>=1.0.0",
     "sentence-transformers>=2.7.0",
 ]
@@ -63,5 +62,3 @@ ignore_errors = true
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_default_fixture_loop_scope = "function"
-
-

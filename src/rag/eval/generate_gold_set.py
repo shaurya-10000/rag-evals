@@ -29,7 +29,7 @@ FACTS = [
     "Acme Corp's customer support is available 24/7 via phone and email."
 ]
 
-def generate_gold_set():
+def generate_gold_set() -> None:
     print('Generating synthetic gold set using Gemini...')
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
     
@@ -45,7 +45,7 @@ def generate_gold_set():
                 model="gemini-3.5-flash-lite",
                 contents=prompt,
             )
-            question = response.text.strip()
+            question = (response.text or '').strip()
             if question:
                 gold_set.append({
                     "question": question,
@@ -63,3 +63,4 @@ def generate_gold_set():
 
 if __name__ == '__main__':
     generate_gold_set()
+
