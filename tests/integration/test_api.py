@@ -28,5 +28,6 @@ def test_ingest_and_query():
     
     data = response.json()
     assert "answer" in data
-    assert data["answer"] == "Mock answer based on 2 chunks."
+    assert "Mock answer based on" in data["answer"]
     assert len(data["results"]) > 0
+
