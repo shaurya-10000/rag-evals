@@ -1,0 +1,10 @@
+[
+  {
+    "question": "What is the capital of France?",
+    "relevant_chunks": ["Paris is the capital and most populous city of France."]
+  },
+  {
+    "question": "Who wrote Romeo and Juliet?",
+    "relevant_chunks": ["William Shakespeare wrote the play Romeo and Juliet."]
+  }
+]
