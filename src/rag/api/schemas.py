@@ -23,4 +23,5 @@ class ChunkResult(BaseModel):
     metadata: dict[str, Any]
 
 class QueryResponse(BaseModel):
+    answer: str
     results: list[ChunkResult]
