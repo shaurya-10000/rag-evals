@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from rag.api.schemas import ChunkResult, IngestRequest, IngestResponse, QueryRequest, QueryResponse
 from rag.db import get_db
 from rag.generate.generator import Generator
+from rag.generate.reranker import Reranker
 from rag.repository import DocumentRepository
 from rag.retrieve.embedder import Embedder
 from rag.retrieve.retriever import Retriever
@@ -15,6 +16,9 @@ def get_embedder() -> Embedder:
 
 def get_generator() -> Generator:
     return Generator(mock=False)
+
+def get_reranker() -> Reranker:
+    return Reranker(mock=False)
 
 @app.get("/health")
 def health_check() -> dict[str, str]:
@@ -38,15 +42,20 @@ def query(
     db: Session = Depends(get_db),
     embedder: Embedder = Depends(get_embedder),
     generator: Generator = Depends(get_generator),
+    reranker: Reranker = Depends(get_reranker),
 ) -> QueryResponse:
+    # 1. Retrieve 20 candidates via Hybrid Search
     retriever = Retriever(db=db, embedder=embedder)
-    chunks = retriever.search(query=request.query, top_k=request.top_k)
+    candidates = retriever.search(query=request.query, top_k=20)
     
-    # Generate answer using the retrieved chunks
-    answer = generator.generate_answer(query=request.query, chunks=chunks)
+    # 2. Rerank down to the best 3
+    final_chunks = reranker.rerank(query=request.query, chunks=candidates, top_k=request.top_k)
+    
+    # 3. Generate answer using the reranked chunks
+    answer = generator.generate_answer(query=request.query, chunks=final_chunks)
     
     results = [
         ChunkResult(id=c.id, content=c.content, metadata=c.metadata_col)
-        for c in chunks
+        for c in final_chunks
     ]
     return QueryResponse(answer=answer, results=results)
