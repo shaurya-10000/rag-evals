@@ -14,7 +14,7 @@ dependencies = [
     "pydantic>=2.6.0",
     "pydantic-settings>=2.2.0",
     "sqlalchemy>=2.0.0",
-    "psycopg2-binary>=2.9.9",
+    "psycopg[binary]>=3.1.0",
     "pgvector>=0.2.6",
     "alembic>=1.13.0",
     "openai>=1.14.0",
@@ -63,3 +63,4 @@ ignore_errors = true
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_default_fixture_loop_scope = "function"
+
