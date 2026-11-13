@@ -1,6 +1,7 @@
 import hashlib
 from typing import Any
 
+
 class DocumentChunker:
     """Splits text into chunks. Pluggable for ablations later."""
     def __init__(self, chunk_size: int = 1000, overlap: int = 100):
@@ -23,7 +24,9 @@ class IngestionPipeline:
         """Compute SHA-256 hash to ensure idempotency."""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-    def process_document(self, title: str, text: str, source_url: str | None = None) -> dict[str, Any]:
+    def process_document(
+        self, title: str, text: str, source_url: str | None = None
+    ) -> dict[str, Any]:
         content_hash = self.compute_hash(text)
         chunks = self.chunker.split(text)
         chunk_data = [

@@ -1,5 +1,6 @@
 from rag.ingest.pipeline import DocumentChunker, IngestionPipeline
 
+
 def test_compute_hash_is_deterministic():
     text = "This is a test document."
     hash1 = IngestionPipeline.compute_hash(text)

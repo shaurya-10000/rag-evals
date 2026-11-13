@@ -1,4 +1,5 @@
-from rag.db_models import Document, Chunk
+from rag.db_models import Chunk, Document
+
 
 def test_document_model_instantiation():
     doc = Document(title="Test Doc", content_hash="abc123")
