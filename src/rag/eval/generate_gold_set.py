@@ -1,6 +1,8 @@
 import json
 import time
+
 from google import genai
+
 from rag.config.settings import settings
 
 # Facts about a fictional company (for the LLM to generate questions from)
