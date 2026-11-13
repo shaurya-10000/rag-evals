@@ -11,7 +11,7 @@ from rag.retrieve.embedder import Embedder
 from rag.retrieve.retriever import Retriever
 
 
-def main():
+def main() -> None:
     print("Running evaluation harness...")
     
     # 1. Setup DB and retriever
@@ -48,4 +48,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

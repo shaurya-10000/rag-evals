@@ -10,11 +10,10 @@ from rag.retrieve.retriever import Retriever
 app = FastAPI(title="RAG Evals API", version="0.1.0")
 
 def get_embedder() -> Embedder:
-    # In production, set mock=False and provide OPENAI_API_KEY in .env
     return Embedder(mock=False)
 
 @app.get("/health")
-def health_check():
+def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 @app.post("/ingest", response_model=IngestResponse)
@@ -22,7 +21,7 @@ def ingest(
     request: IngestRequest,
     db: Session = Depends(get_db),
     embedder: Embedder = Depends(get_embedder),
-):
+) -> IngestResponse:
     repo = DocumentRepository(db=db, embedder=embedder)
     doc = repo.ingest_document(
         title=request.title, text=request.text, source_url=request.source_url
@@ -34,7 +33,7 @@ def query(
     request: QueryRequest,
     db: Session = Depends(get_db),
     embedder: Embedder = Depends(get_embedder),
-):
+) -> QueryResponse:
     retriever = Retriever(db=db, embedder=embedder)
     chunks = retriever.search(query=request.query, top_k=request.top_k)
     results = [
@@ -42,4 +41,3 @@ def query(
         for c in chunks
     ]
     return QueryResponse(results=results)
-

@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 from rag.eval.metrics import RetrievalMetrics
 from rag.retrieve.retriever import Retriever
@@ -8,11 +9,11 @@ class EvalRunner:
     def __init__(self, retriever: Retriever):
         self.retriever = retriever
 
-    def load_gold_set(self, filepath: str) -> list[dict]:
+    def load_gold_set(self, filepath: str) -> list[dict[str, Any]]:
         with open(filepath, encoding="utf-8") as f:
-            return json.load(f)
+            return json.load(f)  # type: ignore[no-any-return]
 
-    def run(self, gold_set: list[dict], k: int = 3) -> dict:
+    def run(self, gold_set: list[dict[str, Any]], k: int = 3) -> dict[str, Any]:
         total_recall = 0.0
         total_mrr = 0.0
         num_questions = len(gold_set)
@@ -38,3 +39,5 @@ class EvalRunner:
             "mrr": total_mrr / num_questions if num_questions else 0.0,
             "num_questions": num_questions
         }
+
+

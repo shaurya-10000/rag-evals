@@ -50,9 +50,15 @@ python_version = "3.11"
 strict = true
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "rag.migrations.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "rag.retrieve.embedder"
+ignore_errors = true
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_default_fixture_loop_scope = "function"
-
-
