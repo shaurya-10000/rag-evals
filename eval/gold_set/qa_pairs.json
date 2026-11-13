@@ -1,10 +1,110 @@
 [
   {
-    "question": "What is the capital of France?",
-    "relevant_chunks": ["Paris is the capital and most populous city of France."]
+    "question": "When was Acme Corp founded?",
+    "relevant_chunks": [
+      "Acme Corp was founded in 1995 by Jane Doe in Seattle."
+    ]
   },
   {
-    "question": "Who wrote Romeo and Juliet?",
-    "relevant_chunks": ["William Shakespeare wrote the play Romeo and Juliet."]
+    "question": "What is the company's flagship product, and when was it released?",
+    "relevant_chunks": [
+      "The company's flagship product is the Acme Rocket, released in 2005."
+    ]
+  },
+  {
+    "question": "How much annual revenue does Acme Rocket generate?",
+    "relevant_chunks": [
+      "Acme Rocket generates  million in annual revenue."
+    ]
+  },
+  {
+    "question": "What smaller competitor did Acme Corp acquire in 2010?",
+    "relevant_chunks": [
+      "In 2010, Acme Corp acquired a smaller competitor called Beta Dynamics for  million."
+    ]
+  },
+  {
+    "question": "How many employees does Acme Corp have and in which cities are its offices located?",
+    "relevant_chunks": [
+      "Acme Corp has 500 employees and offices in Seattle, New York, and London."
+    ]
+  },
+  {
+    "question": "When did John Smith become the CEO of Acme Corp?",
+    "relevant_chunks": [
+      "The CEO of Acme Corp is John Smith, who took over in 2015."
+    ]
+  },
+  {
+    "question": "What is the ticker symbol for Acme Corp on the NASDAQ?",
+    "relevant_chunks": [
+      "Acme Corp is publicly traded on the NASDAQ under the ticker ACME."
+    ]
+  },
+  {
+    "question": "Who is Acme Corp's main competitor?",
+    "relevant_chunks": [
+      "Acme Corp's main competitor is Globex Corporation."
+    ]
+  },
+  {
+    "question": "In what year did Acme Corp launch a new division focused on AI and machine learning?",
+    "relevant_chunks": [
+      "In 2020, Acme Corp launched a new division focused on AI and machine learning."
+    ]
+  },
+  {
+    "question": "What predictive analytics tool was developed by Acme Corp's AI division?",
+    "relevant_chunks": [
+      "Acme Corp's AI division developed the Acme Neural Net, a predictive analytics tool."
+    ]
+  },
+  {
+    "question": "How many enterprise clients use the Acme Neural Net?",
+    "relevant_chunks": [
+      "The Acme Neural Net is used by 100 enterprise clients."
+    ]
+  },
+  {
+    "question": "How much does Acme Corp plan to invest in AI research over the next 3 years?",
+    "relevant_chunks": [
+      "Acme Corp plans to invest  million in AI research over the next 3 years."
+    ]
+  },
+  {
+    "question": "Where is the company's headquarters located?",
+    "relevant_chunks": [
+      "The company's headquarters is a 10-story building in downtown Seattle."
+    ]
+  },
+  {
+    "question": "What was Acme Corp's net income in 2022?",
+    "relevant_chunks": [
+      "Acme Corp reported a net income of  million in 2022."
+    ]
+  },
+  {
+    "question": "By what percentage did the company's stock price rise in 2023?",
+    "relevant_chunks": [
+      "The company's stock price rose 25% in 2023."
+    ]
+  },
+  {
+    "question": "Who does Acme Corp have a partnership with for AI research?",
+    "relevant_chunks": [
+      "Acme Corp has a partnership with the University of Washington for AI research."
+    ]
+  },
+  {
+    "question": "What award did Acme Corp win in 2021?",
+    "relevant_chunks": [
+      "Acme Corp won the 'Best Places to Work' award in 2021."
+    ]
+  },
+  {
+    "question": "When and through which channels is Acme Corp's customer support available?",
+    "relevant_chunks": [
+      "Acme Corp's customer support is available 24/7 via phone and email."
+    ]
   }
 ]
