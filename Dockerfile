@@ -1,12 +1,15 @@
 FROM python:3.11-slim
 
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    FASTEMBED_CACHE_PATH=/app/.fastembed_cache
+
 WORKDIR /app
 
-# Install CPU-only Torch FIRST to prevent Render from downloading 2.5GB of Nvidia drivers
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
-
 COPY . .
-RUN pip install --no-cache-dir -e "."
+RUN pip install -e "."
 
-EXPOSE 8000
-CMD ["uvicorn", "rag.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Bake the reranker model into the image so the first request doesn't download it
+RUN python -c "from fastembed.rerank.cross_encoder import TextCrossEncoder; TextCrossEncoder(model_name='Xenova/ms-marco-MiniLM-L-6-v2', cache_dir='/app/.fastembed_cache')"
+
+CMD ["sh", "-c", "uvicorn rag.api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

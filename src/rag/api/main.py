@@ -1,3 +1,6 @@
+import os
+from functools import lru_cache
+
 from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
@@ -17,8 +20,10 @@ def get_embedder() -> Embedder:
 def get_generator() -> Generator:
     return Generator(mock=False)
 
+@lru_cache(maxsize=1)
 def get_reranker() -> Reranker:
-    return Reranker(mock=False)
+    enabled = os.getenv("RERANK_ENABLED", "true").lower() != "false"
+    return Reranker(mock=not enabled)
 
 @app.get("/health")
 def health_check() -> dict[str, str]:
