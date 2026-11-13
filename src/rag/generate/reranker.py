@@ -10,23 +10,23 @@ class Reranker:
         mock: bool = False,
     ):
         self.mock = mock
-        if not mock:
-            self.model = CrossEncoder(model_name)
+        self.model_name = model_name
+        self._model = None  # <--- LAZY LOADING: Do not load on startup
+
+    def _get_model(self):
+        if self._model is None:
+            # device='cpu' ensures we don't try to load GPU drivers (saves memory)
+            self._model = CrossEncoder(self.model_name, device="cpu")
+        return self._model
 
     def rerank(self, query: str, chunks: list[Chunk], top_k: int = 3) -> list[Chunk]:
-        '''Rerank a list of chunks based on their actual relevance to the query.'''
         if self.mock or not chunks:
             return chunks[:top_k]
 
-        # Create pairs of (query, chunk_content)
+        model = self._get_model()
         pairs = [[query, chunk.content] for chunk in chunks]
+        scores = model.predict(pairs)
 
-        # Get relevance scores
-        scores = self.model.predict(pairs)
-
-        # Combine chunks with scores and sort descending
         scored_chunks = list(zip(chunks, scores, strict=False))
         scored_chunks.sort(key=lambda x: x[1], reverse=True)
-
-        # Return the top_k
         return [chunk for chunk, score in scored_chunks[:top_k]]
