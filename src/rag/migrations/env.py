@@ -10,7 +10,6 @@ sys.path.insert(0, os.path.abspath('src'))
 from rag.db_models import Base
 
 config = context.config
-import os
 
 if os.getenv('DATABASE_URL'):
     config.set_main_option('sqlalchemy.url', os.getenv('DATABASE_URL'))
@@ -47,4 +46,5 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+
 
