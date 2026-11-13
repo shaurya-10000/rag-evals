@@ -1,4 +1,5 @@
 import logging
+import time
 
 from google import genai
 from google.genai import types
@@ -7,6 +8,7 @@ from rag.config.settings import settings
 from rag.db_models import Chunk
 
 logger = logging.getLogger(__name__)
+
 
 class Generator:
     def __init__(self, mock: bool = False):
@@ -50,20 +52,24 @@ Answer:"""
 
         # 3. Try models in order (Fallback pattern)
         for model in self.models:
+            started = time.perf_counter()
             try:
-                print(f"Attempting generation with {model}...")
                 response = self.client.models.generate_content(
                     model=model,
                     contents=prompt,
                 )
+                elapsed = time.perf_counter() - started
                 if response.text:
-                    print(f"Success with {model}!")
+                    logger.info("generation ok model=%s time=%.1fs", model, elapsed)
                     return response.text
+                logger.warning("generation empty model=%s time=%.1fs", model, elapsed)
             except Exception as e:
-                # If it fails (503, 429, 404), log it and try the next model
-                print(f"Model {model} failed: {str(e)}. Falling back...")
-                logger.warning(f"Model {model} failed: {e}")
+                # If it fails (503, 429, 404, timeout), log it and try the next model
+                elapsed = time.perf_counter() - started
+                logger.warning(
+                    "generation failed model=%s time=%.1fs error=%s", model, elapsed, e
+                )
                 continue
-        
+
         # If all models fail
         return "Error: All LLM models are currently unavailable. Please try again later."
