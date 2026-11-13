@@ -62,20 +62,21 @@ jobs:
           pip install -e ".[dev]"
       - name: Run Migrations
         env:
-          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/rag_evals
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/rag_evals
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           alembic upgrade head
       - name: Run Integration Tests
         env:
-          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/rag_evals
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/rag_evals
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           pytest tests/integration
       - name: Run Eval Suite (Gate)
         env:
-          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/rag_evals
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/rag_evals
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python -m rag.eval.run_eval
+
 
