@@ -17,7 +17,7 @@ def main():
     # 1. Setup DB and retriever
     SessionLocal = sessionmaker(bind=engine)
     db = SessionLocal()
-    embedder = Embedder(mock=True)
+    embedder = Embedder(mock=False)
     repo = DocumentRepository(db=db, embedder=embedder)
     retriever = Retriever(db=db, embedder=embedder)
     runner = EvalRunner(retriever)
@@ -38,7 +38,7 @@ def main():
     print(f"Results: {json.dumps(results, indent=2)}")
 
     # 5. CI Gate (Temporarily 0.0 for mock embedder)
-    RECALL_THRESHOLD = 0.0
+    RECALL_THRESHOLD = 0.5
     if results["recall_at_k"] < RECALL_THRESHOLD:
         print(f"FAILED: Recall@K ({results['recall_at_k']}) < {RECALL_THRESHOLD}")
         sys.exit(1)
@@ -48,3 +48,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

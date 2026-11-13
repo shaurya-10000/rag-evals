@@ -18,7 +18,7 @@ dependencies = [
     "pgvector>=0.2.6",
     "alembic>=1.13.0",
     "openai>=1.14.0",
-    "anthropic>=0.21.0",
+    "google-genai>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -29,7 +29,11 @@ dev = [
     "mypy>=1.9.0",
     "locust>=2.24.0",
     "pre-commit>=3.7.0",
+    "httpx>=0.27.0",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rag"]
 
 [tool.ruff]
 line-length = 100
@@ -37,6 +41,9 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/rag/api/main.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -47,5 +54,5 @@ ignore_missing_imports = true
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_default_fixture_loop_scope = "function"
-[tool.ruff.lint.per-file-ignores]
-"src/rag/api/main.py" = ["B008"]
+
+

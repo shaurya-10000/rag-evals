@@ -11,7 +11,7 @@ app = FastAPI(title="RAG Evals API", version="0.1.0")
 
 def get_embedder() -> Embedder:
     # In production, set mock=False and provide OPENAI_API_KEY in .env
-    return Embedder(mock=True)
+    return Embedder(mock=False)
 
 @app.get("/health")
 def health_check():
@@ -42,3 +42,4 @@ def query(
         for c in chunks
     ]
     return QueryResponse(results=results)
+
