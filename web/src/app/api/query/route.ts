@@ -12,7 +12,7 @@ export async function POST(req: Request) {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'X-API-Key': process.env.NEXT_PUBLIC_RAG_API_KEY || 'dev-secret-key-change-in-production',
+        'X-API-Key': process.env.RAG_API_KEY || 'dev-secret-key-change-in-production',
         'Cookie': `access_token=${accessToken}`
       },
       body: JSON.stringify(body),
