@@ -2,7 +2,7 @@
 
 # 🧠 RAG Evals
 
-**A production-grade multi-modal RAG architecture with a CI-gated evaluation harness, hierarchical LLM fallbacks, and strict type safety.**
+**A production-grade multi-modal RAG architecture with a CI-gated evaluation harness, hierarchical LLM fallbacks, real-time SSE streaming, and strict type safety.**
 
 [![CI & Eval Gate](https://github.com/shaurya-10000/rag-evals/actions/workflows/ci.yml/badge.svg)](https://github.com/shaurya-10000/rag-evals/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](./LICENSE)
@@ -21,8 +21,8 @@
 
 |  |  |
 | :--- | :--- |
-| **What** | A full-stack RAG application that ingests text, PDFs, Markdown, and Images, embeds them using Gemini, and retrieves grounded answers with citations via a robust fallback chain. |
-| **Why it's interesting** | Most RAG projects just call an LLM on plain text. This project includes **multi-modal ingestion (Vision)**, a **CI-gated evaluation harness** that blocks PRs if retrieval quality drops, a **hierarchical fallback** for high-availability LLM generation, and a **Hybrid Search + Multithreaded Reranker** pipeline. |
+| **What** | A full-stack RAG application that ingests text, PDFs, Markdown, and Images, embeds them using Gemini, and streams grounded answers with citations via a robust fallback chain. |
+| **Why it's interesting** | Most RAG projects just call an LLM on plain text. This project includes **multi-modal ingestion (Vision)**, a **CI-gated evaluation harness** that blocks PRs if retrieval quality drops, a **hierarchical fallback** for high-availability LLM generation, **real-time SSE streaming**, and a **Hybrid Search + Multithreaded Reranker** pipeline. |
 | **Stack** | Python 3.11 · FastAPI · SQLAlchemy 2.0 · Postgres (pgvector) · Google Gemini (Vision + Text) · Next.js 15 · Tailwind CSS · Pytest · Ruff · Mypy · GitHub Actions |
 
 ## Contents
@@ -62,7 +62,7 @@ flowchart TD
         Embedder --> DB[("PostgreSQL + pgvector\n(Neon)")]
     end
 
-    Client -->|"POST /query"| QueryAPI["FastAPI Query"]
+    Client -->|"POST /query (SSE)"| QueryAPI["FastAPI Query"]
 
     subgraph "Retrieval Pipeline"
         QueryAPI -->|"1. Embed Query"| Embedder
@@ -75,8 +75,8 @@ flowchart TD
         QueryAPI -->|"5. Prompt with Context"| LLM["Gemini Generator\n(Fallback Chain)"]
     end
 
-    LLM -->|"6. Answer + Citations"| QueryAPI
-    QueryAPI -->|"7. 200 OK"| Client
+    LLM -->|"6. Streamed Tokens + Citations"| QueryAPI
+    QueryAPI -->|"7. SSE Stream"| Client
 ```
 
 ### Design principles
@@ -94,6 +94,7 @@ flowchart TD
 | The AI cites its sources | Prompt explicitly says: "Cite the context chunks you use by writing [1], [2]." |
 | The API won't crash on LLM outage | The `Generator` catches `Exception` and loops through the `self.models` array. |
 | Multi-modal support | PDFs and Images are parsed into text (via PyPDF and Gemini Vision) before embedding. |
+| Real-time streaming | The `/query` endpoint returns an SSE `StreamingResponse`, and the UI renders tokens as they arrive. |
 | Type safety across the board | `mypy --strict` passes on all source files. |
 | CI won't merge regressions | `eval-gate` job fails if `recall_at_k < 0.5`. |
 
@@ -106,6 +107,7 @@ flowchart TD
 | **Multithreaded Cross-Encoder Reranker** | Bi-encoders (vector search) are fast but imprecise. Cross-encoders are slow but accurate. We multithread the ONNX runtime to drop latency from 28s to ~200ms. | Requires CPU cores to run efficiently. |
 | **Relevance Threshold in Reranker** | If a chunk isn't actually relevant to the query, we drop it from the context instead of forcing 3 chunks. | May return fewer than `top_k` sources for highly specific queries. |
 | **Sentence-Aware Chunking** | Splitting by arbitrary characters cuts words in half. Splitting by sentences preserves semantic meaning. | Slightly more complex logic than a basic character loop. |
+| **Server-Sent Events (SSE) for streaming** | The user sees the AI "typing" in real-time, cutting perceived latency from seconds to milliseconds. | Requires the Next.js API route to act as a pass-through proxy without buffering. |
 
 ---
 
@@ -211,30 +213,29 @@ pytest tests/
 ├── .github/workflows/ci.yml    # CI pipeline with Eval Gate
 ├── eval/gold_set/              # Known Q&A pairs for evaluation
 ├── src/rag/
-│   ├── api/                    # FastAPI routes (Multi-modal ingestion)
+│   ├── api/                    # FastAPI routes (Multi-modal + SSE streaming)
 │   ├── config/                 # Pydantic settings (loads .env)
 │   ├── db_models.py            # SQLAlchemy models (Document, Chunk)
 │   ├── eval/                   # Metrics (Recall, MRR) and runner
-│   ├── generate/               # LLM Generator & Multithreaded Reranker
+│   ├── generate/               # LLM Generator (streaming) & Multithreaded Reranker
 │   ├── ingest/                 # Sentence-aware chunking
 │   ├── migrations/             # Alembic migrations
 │   ├── repository.py           # Idempotent DB operations
 │   └── retrieve/               # Hybrid Retriever and Embedder
-├── web/                        # Next.js frontend (Split-pane UI)
+├── web/                        # Next.js frontend (Tabbed chat + ingest UI)
 └── tests/                      # Unit and integration tests
 ```
 
 ## Known limitations
 
-- **No streaming responses.** The Next.js UI waits for the full response before displaying it.
 - **Cold starts on Render.** The free tier spins down after 15 minutes. The first request takes ~30 seconds.
 - **Free-tier Gemini quotas.** Vision and generation models have strict daily request limits on the free tier.
 
 ## Roadmap
 
-- [ ] Add streaming SSE responses for a better UX.
 - [ ] Implement RAGAS for generation metrics (Faithfulness, Answer Relevance).
 - [ ] Add user authentication (Clerk or Supabase Auth).
+- [ ] Add multi-document chat sessions (persist chat history in Postgres).
 
 ---
 
