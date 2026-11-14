@@ -28,7 +28,8 @@ class Generator:
 
         return f"""You are a highly capable AI assistant.
 Answer the user's question using ONLY the provided context.
-If the exact answer is not in the context, provide a helpful summary based on the context you do have, rather than saying 'I don't know'.
+If the exact answer is not in the context, provide a helpful summary 
+based on the context you do have, rather than saying 'I don't know'.
 Cite the context chunks you use by writing [1], [2], etc.
 
 IMPORTANT FORMATTING INSTRUCTIONS:
