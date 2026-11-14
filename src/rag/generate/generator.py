@@ -24,7 +24,7 @@ class Generator:
     def _build_prompt(self, query: str, chunks: list[Chunk]) -> str:
         context = ""
         for i, chunk in enumerate(chunks):
-            context += f"[{i+1}] {chunk.content}\n\n"
+            context += f"[{i + 1}] {chunk.content}\n\n"
 
         return f"""You are a helpful assistant.
 Answer the user's question using ONLY the provided context.
@@ -61,9 +61,7 @@ Answer:"""
 
         return "Error: All LLM models are currently unavailable. Please try again later."
 
-    def stream_answer(
-        self, query: str, chunks: list[Chunk]
-    ) -> TypingGenerator[str, None, None]:
+    def stream_answer(self, query: str, chunks: list[Chunk]) -> TypingGenerator[str, None, None]:
         if self.mock:
             yield "Mock "
             yield "streaming "
@@ -91,9 +89,7 @@ Answer:"""
                 return
             except Exception as e:
                 elapsed = time.perf_counter() - started
-                logger.warning(
-                    f"stream failed model={model} time={elapsed:.1f}s error={e}"
-                )
+                logger.warning(f"stream failed model={model} time={elapsed:.1f}s error={e}")
                 continue
 
         yield "Error: All LLM models are currently unavailable. Please try again later."

@@ -43,13 +43,16 @@ class Embedder:
                 delay = self.base_delay * (2 ** (attempt - 1))
                 logger.warning(
                     "embedding failed code=%s attempt=%d/%d, retrying in %.1fs",
-                    e.code, attempt, self.max_attempts, delay,
+                    e.code,
+                    attempt,
+                    self.max_attempts,
+                    delay,
                 )
                 time.sleep(delay)
         raise RuntimeError("unreachable")  # pragma: no cover
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        '''Generate embeddings using Gemini.'''
+        """Generate embeddings using Gemini."""
         if self.mock:
             return [[0.01] * 768 for _ in texts]
 
@@ -66,7 +69,7 @@ class Embedder:
         return [e.values for e in result.embeddings]
 
     def embed_text(self, text: str) -> list[float]:
-        '''Generate embedding for a query.'''
+        """Generate embedding for a query."""
         if self.mock:
             return [0.01] * 768
 

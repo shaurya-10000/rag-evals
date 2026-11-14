@@ -114,9 +114,7 @@ async def ingest(
         text = data.get("text", "")
         source = "manual_text_entry"
         if len(text.strip()) < 10:
-            raise HTTPException(
-                status_code=422, detail="Text must be at least 10 characters long."
-            )
+            raise HTTPException(status_code=422, detail="Text must be at least 10 characters long.")
     elif content_type.startswith("multipart/form-data"):
         form = await request.form()
         title = str(form.get("title", "Untitled"))
@@ -134,9 +132,7 @@ async def ingest(
         if filename.endswith(".pdf"):
             try:
                 reader = PdfReader(BytesIO(contents))
-                text = "\n".join(
-                    p.extract_text() for p in reader.pages if p.extract_text()
-                )
+                text = "\n".join(p.extract_text() for p in reader.pages if p.extract_text())
             except Exception as e:
                 raise HTTPException(status_code=400, detail="Invalid PDF file") from e
         elif filename.endswith((".png", ".jpg", ".jpeg", ".webp")):
@@ -186,9 +182,7 @@ async def ingest(
         raise HTTPException(status_code=415, detail="Unsupported Media Type")
 
     repo = DocumentRepository(db=db, embedder=embedder)
-    doc = repo.ingest_document(
-        user_id=current_user.id, title=title, text=text, source_url=source
-    )
+    doc = repo.ingest_document(user_id=current_user.id, title=title, text=text, source_url=source)
     logger.info(f"[{request_id}] Ingest done. doc_id={doc.id}")
     return IngestResponse(document_id=doc.id, status="ingested")
 
@@ -206,9 +200,7 @@ def query(
     current_user: User = Depends(get_current_user),  # noqa: B008
 ) -> StreamingResponse:
     request_id = str(uuid.uuid4())[:8]
-    logger.info(
-        f"[{request_id}] Query from user={current_user.username}: '{payload.query[:60]}'"
-    )
+    logger.info(f"[{request_id}] Query from user={current_user.username}: '{payload.query[:60]}'")
 
     t_start = time.perf_counter()
     retriever = Retriever(db=db, embedder=embedder)
@@ -217,9 +209,7 @@ def query(
     )
     t_retrieve = time.perf_counter()
 
-    final_chunks = reranker.rerank(
-        query=payload.query, chunks=candidates, top_k=payload.top_k
-    )
+    final_chunks = reranker.rerank(query=payload.query, chunks=candidates, top_k=payload.top_k)
     t_rerank = time.perf_counter()
 
     def event_generator() -> TypingGenerator[str, None, None]:
@@ -229,9 +219,7 @@ def query(
         ]
         yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
         try:
-            for text_chunk in generator.stream_answer(
-                query=payload.query, chunks=final_chunks
-            ):
+            for text_chunk in generator.stream_answer(query=payload.query, chunks=final_chunks):
                 yield f"data: {json.dumps({'type': 'token', 'text': text_chunk})}\n\n"
         except Exception as e:
             logger.error(f"[{request_id}] Stream error: {e}")

@@ -17,30 +17,25 @@ class EvalRunner:
         total_recall = 0.0
         total_mrr = 0.0
         num_questions = 0
-        
+
         for item in gold_set:
             question = item["question"]
             expected_chunk = item.get("expected_answer_chunk", "")
-            
+
             if expected_chunk == "NONE" or not expected_chunk:
                 continue
-                
+
             num_questions += 1
             relevant_texts = {expected_chunk}
 
             retrieved_chunks = self.retriever.search(query=question, user_id=None, top_k=k)
             retrieved_texts = [c.content for c in retrieved_chunks]
 
-            total_recall += RetrievalMetrics.recall_at_k(
-                retrieved_texts, relevant_texts, k
-            )
-            total_mrr += RetrievalMetrics.mean_reciprocal_rank(
-                retrieved_texts, relevant_texts
-            )
+            total_recall += RetrievalMetrics.recall_at_k(retrieved_texts, relevant_texts, k)
+            total_mrr += RetrievalMetrics.mean_reciprocal_rank(retrieved_texts, relevant_texts)
 
         return {
             "recall_at_k": total_recall / num_questions if num_questions else 0.0,
             "mrr": total_mrr / num_questions if num_questions else 0.0,
             "num_questions": num_questions,
         }
-

@@ -38,13 +38,13 @@ class Reranker:
 
         model = self._get_model()
         scores = list(model.rerank(query, [chunk.content for chunk in chunks]))
-        
+
         ranked = sorted(zip(chunks, scores, strict=True), key=lambda pair: pair[1], reverse=True)
-        
+
         THRESHOLD = float(os.getenv("RERANK_SCORE_THRESHOLD", "0.0"))
         filtered = [chunk for chunk, score in ranked if score >= THRESHOLD]
-        
+
         if not filtered and ranked:
             return [ranked[0][0]]
-            
+
         return filtered[:top_k]

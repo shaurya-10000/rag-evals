@@ -26,41 +26,39 @@ FACTS = [
     "The Acme Rocket is used by NASA for small satellite launches.",
     "Acme Corp won the 'Best Places to Work' award in 2021.",
     "The company has a 4.5-star rating on Glassdoor.",
-    "Acme Corp's customer support is available 24/7 via phone and email."
+    "Acme Corp's customer support is available 24/7 via phone and email.",
 ]
 
+
 def generate_gold_set() -> None:
-    print('Generating synthetic gold set using Gemini...')
+    print("Generating synthetic gold set using Gemini...")
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
-    
+
     gold_set = []
     for fact in FACTS:
-        prompt = f'''Based on this fact, write a single question that can be answered by the fact. 
+        prompt = f"""Based on this fact, write a single question that can be answered by the fact. 
         Output ONLY the question.
         
-        Fact: {fact}'''
-        
+        Fact: {fact}"""
+
         try:
             response = client.models.generate_content(
                 model="gemini-3.5-flash-lite",
                 contents=prompt,
             )
-            question = (response.text or '').strip()
+            question = (response.text or "").strip()
             if question:
-                gold_set.append({
-                    "question": question,
-                    "relevant_chunks": [fact]
-                })
-                print(f'Generated question: {question}')
+                gold_set.append({"question": question, "relevant_chunks": [fact]})
+                print(f"Generated question: {question}")
         except Exception as e:
-            print(f'Failed to generate question: {e}')
-        
+            print(f"Failed to generate question: {e}")
+
         time.sleep(0.5)  # Rate limit
 
-    with open('eval/gold_set/qa_pairs.json', 'w', encoding='utf-8') as f:
+    with open("eval/gold_set/qa_pairs.json", "w", encoding="utf-8") as f:
         json.dump(gold_set, f, indent=2)
-    print(f'Saved {len(gold_set)} questions to eval/gold_set/qa_pairs.json')
+    print(f"Saved {len(gold_set)} questions to eval/gold_set/qa_pairs.json")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     generate_gold_set()
-

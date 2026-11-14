@@ -24,9 +24,7 @@ def main() -> None:
     runner = EvalRunner(retriever)
 
     # Create a dedicated eval user so the FK constraint is satisfied
-    eval_user = (
-        db.query(User).filter(User.email == "eval@rag-evals.local").first()
-    )
+    eval_user = db.query(User).filter(User.email == "eval@rag-evals.local").first()
     if not eval_user:
         eval_user = User(
             id=uuid.uuid4(),
@@ -40,22 +38,16 @@ def main() -> None:
 
     # Clean only this eval user's documents
     db.query(Chunk).filter(
-        Chunk.document_id.in_(
-            db.query(Document.id).filter(Document.user_id == eval_user.id)
-        )
+        Chunk.document_id.in_(db.query(Document.id).filter(Document.user_id == eval_user.id))
     ).delete(synchronize_session=False)
-    db.query(Document).filter(Document.user_id == eval_user.id).delete(
-        synchronize_session=False
-    )
+    db.query(Document).filter(Document.user_id == eval_user.id).delete(synchronize_session=False)
     db.commit()
 
     gold_set = runner.load_gold_set("eval/gold_set/qa_pairs.json")
     for item in gold_set:
         expected_chunk = item.get("expected_answer_chunk", "")
         if expected_chunk and expected_chunk != "NONE":
-            repo.ingest_document(
-                user_id=eval_user.id, title="Eval Doc", text=expected_chunk
-            )
+            repo.ingest_document(user_id=eval_user.id, title="Eval Doc", text=expected_chunk)
 
     results = runner.run(gold_set, k=3)
     print(f"Results: {json.dumps(results, indent=2)}")

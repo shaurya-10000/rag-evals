@@ -23,7 +23,11 @@ class LoginRequest(BaseModel):
 
 def _set_token_cookie(response: Response, token: str) -> None:
     response.set_cookie(
-        key="access_token", value=token, httponly=True, secure=False, samesite="lax",
+        key="access_token",
+        value=token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
         max_age=settings.JWT_EXPIRES_MINUTES * 60,
     )
 
@@ -39,14 +43,14 @@ def register(
 
     if db.query(User).filter(User.email == payload.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
-        
+
     if db.query(User).filter(User.username == payload.username).first():
         raise HTTPException(status_code=400, detail="Username already taken")
 
     user = User(
-        email=payload.email, 
-        username=payload.username, 
-        hashed_password=get_password_hash(payload.password)
+        email=payload.email,
+        username=payload.username,
+        hashed_password=get_password_hash(payload.password),
     )
     db.add(user)
     db.commit()

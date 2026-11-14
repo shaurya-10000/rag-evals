@@ -8,7 +8,7 @@ from sqlalchemy import engine_from_config, pool
 
 load_dotenv()
 
-sys.path.insert(0, os.path.abspath('src'))
+sys.path.insert(0, os.path.abspath("src"))
 
 from rag.db_models import Base  # noqa: E402
 

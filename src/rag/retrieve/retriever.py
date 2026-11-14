@@ -12,21 +12,15 @@ class Retriever:
         self.db = db
         self.embedder = embedder
 
-    def search(
-        self, query: str, user_id: uuid.UUID | None = None, top_k: int = 5
-    ) -> list[Chunk]:
+    def search(self, query: str, user_id: uuid.UUID | None = None, top_k: int = 5) -> list[Chunk]:
         query_embedding = self.embedder.embed_text(query)
 
-        vector_query = (
-            self.db.query(Chunk).join(Document).filter(Chunk.embedding.isnot(None))
-        )
+        vector_query = self.db.query(Chunk).join(Document).filter(Chunk.embedding.isnot(None))
         if user_id:
             vector_query = vector_query.filter(Document.user_id == user_id)
 
         vector_results = (
-            vector_query.order_by(Chunk.embedding.cosine_distance(query_embedding))
-            .limit(20)
-            .all()
+            vector_query.order_by(Chunk.embedding.cosine_distance(query_embedding)).limit(20).all()
         )
 
         sql = (
@@ -42,17 +36,14 @@ class Retriever:
             params["user_id"] = str(user_id)
 
         sql += (
-            " ORDER BY ts_rank(c.search_vector, plainto_tsquery('english', :query))"
-            " DESC LIMIT 20"
+            " ORDER BY ts_rank(c.search_vector, plainto_tsquery('english', :query)) DESC LIMIT 20"
         )
 
         keyword_rows = self.db.execute(text(sql), params).fetchall()
         keyword_ids = [row[0] for row in keyword_rows]
 
         keyword_results = (
-            (self.db.query(Chunk).filter(Chunk.id.in_(keyword_ids)).all())
-            if keyword_ids
-            else []
+            (self.db.query(Chunk).filter(Chunk.id.in_(keyword_ids)).all()) if keyword_ids else []
         )
 
         k = 60

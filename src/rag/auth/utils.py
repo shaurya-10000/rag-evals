@@ -29,7 +29,8 @@ def create_access_token(user_id: uuid.UUID, email: str) -> str:
 
 
 def get_current_user(
-    request: Request, db: Session = Depends(get_db)  # noqa: B008
+    request: Request,
+    db: Session = Depends(get_db),  # noqa: B008
 ) -> User:
     token = request.cookies.get("access_token")
     if not token:
@@ -41,9 +42,7 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     try:
-        payload = jwt.decode(
-            token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM]
-        )
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
