@@ -66,7 +66,10 @@ def with_quota_retry(call: Callable[[], T]) -> T:
         except errors.APIError as e:
             if e.code != 429 or attempt == MAX_QUOTA_RETRIES:
                 raise
-            print(f"  quota hit, cooling down {QUOTA_COOLDOWN_SECONDS:.0f}s ({attempt}/{MAX_QUOTA_RETRIES})")
+            print(
+                f"  quota hit, cooling down {QUOTA_COOLDOWN_SECONDS:.0f}s "
+                f"({attempt}/{MAX_QUOTA_RETRIES})"
+            )
             time.sleep(QUOTA_COOLDOWN_SECONDS)
     raise RuntimeError("unreachable")  # pragma: no cover
 
@@ -79,9 +82,7 @@ def save(fixture: dict[str, list[float]]) -> None:
 def main() -> None:
     gold = json.loads(GOLD_SET.read_text(encoding="utf-8"))
     items = [
-        i
-        for i in gold
-        if i.get("expected_answer_chunk") and i["expected_answer_chunk"] != "NONE"
+        i for i in gold if i.get("expected_answer_chunk") and i["expected_answer_chunk"] != "NONE"
     ]
 
     chunker = DocumentChunker(chunk_size=CHUNK_SIZE, overlap=OVERLAP)
@@ -104,7 +105,7 @@ def main() -> None:
     for start in range(0, len(todo_docs), BATCH_SIZE):
         batch = todo_docs[start : start + BATCH_SIZE]
         throttle.acquire(len(batch))
-        vectors = with_quota_retry(lambda b=batch: embedder.embed_texts(b))
+        vectors = with_quota_retry(lambda b=batch: embedder.embed_texts(b))  # type: ignore[misc]
         for text, vec in zip(batch, vectors, strict=True):
             fixture[fixture_key("doc", text)] = [round(v, PRECISION) for v in vec]
         save(fixture)
@@ -112,7 +113,7 @@ def main() -> None:
 
     for n, query in enumerate(todo_queries, start=1):
         throttle.acquire(1)
-        vec = with_quota_retry(lambda q=query: embedder.embed_text(q))
+        vec = with_quota_retry(lambda q=query: embedder.embed_text(q))  # type: ignore[misc]
         fixture[fixture_key("query", query)] = [round(v, PRECISION) for v in vec]
         if n % 5 == 0 or n == len(todo_queries):
             save(fixture)
