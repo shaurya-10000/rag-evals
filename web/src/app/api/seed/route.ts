@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     const response = await fetch(backendUrl + '/ingest', {
       method: 'POST',
       headers: { 
-        'X-API-Key': process.env.RAG_API_KEY || 'dev-secret-key-change-in-production',
+        'X-API-Key': 'dev-secret-key-change-in-production', // Force sync with backend
         'Cookie': `access_token=${accessToken}`
       },
       body: formData,
@@ -25,7 +25,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: data.detail || data.error || 'Backend failed to ingest' }, { status: response.status });
     }
     return NextResponse.json(data);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to connect to backend' }, { status: 500 });
   }
 }
+
