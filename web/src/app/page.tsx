@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, Layers, User, Database, UploadCloud, FileText, Type, Sparkles, MessageSquare, Copy, Check, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { UserMenu } from '@/components/user-menu';
 
 type Chunk = { id: string; content: string; metadata: Record<string, unknown> };
@@ -207,7 +208,7 @@ export default function Home() {
                                     </button>
                                   </div>
                                 )}
-                                <div className="prose dark:prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-neutral-100 dark:prose-pre:bg-neutral-950 prose-pre:border prose-pre:border-neutral-200 dark:prose-pre:border-neutral-800">
+                                <div className="prose dark:prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-neutral-100 dark:prose-pre:bg-neutral-950 prose-pre:border prose-pre:border-neutral-200 dark:prose-pre:border-neutral-800 prose-table:w-full prose-table:border-collapse prose-th:border prose-th:border-neutral-300 dark:prose-th:border-neutral-700 prose-th:bg-neutral-100 dark:prose-th:bg-neutral-800/50 prose-th:p-2 prose-td:border prose-td:border-neutral-300 dark:prose-td:border-neutral-700 prose-td:p-2">
                                   {isThinking ? (
                                     <div className="flex items-center gap-2 h-6 text-sm text-emerald-500 dark:text-emerald-400 font-medium">
                                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -215,7 +216,7 @@ export default function Home() {
                                     </div>
                                   ) : (
                                     <>
-                                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                                       {msg.isStreaming && <span className="inline-block w-1.5 h-4 ml-1 bg-emerald-500 dark:bg-emerald-400 animate-pulse align-middle" />}
                                     </>
                                   )}
@@ -336,4 +337,5 @@ export default function Home() {
     </div>
   );
 }
+
 
