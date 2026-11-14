@@ -4,8 +4,9 @@ import uuid
 
 from sqlalchemy.orm import sessionmaker
 
+from rag.auth.utils import get_password_hash
 from rag.db import engine
-from rag.db_models import Chunk, Document
+from rag.db_models import Chunk, Document, User
 from rag.eval.runner import EvalRunner
 from rag.repository import DocumentRepository
 from rag.retrieve.embedder import Embedder
@@ -22,10 +23,30 @@ def main() -> None:
     retriever = Retriever(db=db, embedder=embedder)
     runner = EvalRunner(retriever)
 
-    FAKE_ID = uuid.uuid4()
+    # Create a dedicated eval user so the FK constraint is satisfied
+    eval_user = (
+        db.query(User).filter(User.email == "eval@rag-evals.local").first()
+    )
+    if not eval_user:
+        eval_user = User(
+            id=uuid.uuid4(),
+            email="eval@rag-evals.local",
+            username="eval_bot",
+            hashed_password=get_password_hash("unused_password_123"),
+        )
+        db.add(eval_user)
+        db.commit()
+        db.refresh(eval_user)
 
-    db.query(Chunk).delete()
-    db.query(Document).delete()
+    # Clean only this eval user's documents
+    db.query(Chunk).filter(
+        Chunk.document_id.in_(
+            db.query(Document.id).filter(Document.user_id == eval_user.id)
+        )
+    ).delete(synchronize_session=False)
+    db.query(Document).filter(Document.user_id == eval_user.id).delete(
+        synchronize_session=False
+    )
     db.commit()
 
     gold_set = runner.load_gold_set("eval/gold_set/qa_pairs.json")
@@ -33,7 +54,7 @@ def main() -> None:
         expected_chunk = item.get("expected_answer_chunk", "")
         if expected_chunk and expected_chunk != "NONE":
             repo.ingest_document(
-                user_id=FAKE_ID, title="Eval Doc", text=expected_chunk
+                user_id=eval_user.id, title="Eval Doc", text=expected_chunk
             )
 
     results = runner.run(gold_set, k=3)

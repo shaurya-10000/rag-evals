@@ -25,7 +25,6 @@ def test_ingest_document_is_idempotent(db_session):
     embedder = Embedder(mock=True)
     repo = DocumentRepository(db=db_session, embedder=embedder)
 
-    # Create a real user first
     uniq = uuid.uuid4().hex[:8]
     user = User(
         email=f"repo_{uniq}@example.com",
@@ -43,9 +42,11 @@ def test_ingest_document_is_idempotent(db_session):
 
     doc2 = repo.ingest_document(user.id, "Test Doc (Duplicate)", text)
     assert doc1.id == doc2.id
-    assert (
+
+    # Uniqueness is per-user, not global
+    count = (
         db_session.query(Document)
-        .filter_by(content_hash=doc1.content_hash)
+        .filter_by(content_hash=doc1.content_hash, user_id=user.id)
         .count()
-        == 1
     )
+    assert count == 1
