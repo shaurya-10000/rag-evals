@@ -16,17 +16,21 @@ class EvalRunner:
     def run(self, gold_set: list[dict[str, Any]], k: int = 3) -> dict[str, Any]:
         total_recall = 0.0
         total_mrr = 0.0
-        num_questions = len(gold_set)
-
+        num_questions = 0
+        
         for item in gold_set:
             question = item["question"]
-            relevant_texts = set(item["relevant_chunks"])
+            expected_chunk = item.get("expected_answer_chunk", "")
+            
+            if expected_chunk == "NONE" or not expected_chunk:
+                continue
+                
+            num_questions += 1
+            relevant_texts = {expected_chunk}
 
-            # Retrieve chunks
             retrieved_chunks = self.retriever.search(query=question, top_k=k)
             retrieved_texts = [c.content for c in retrieved_chunks]
 
-            # Calculate metrics
             total_recall += RetrievalMetrics.recall_at_k(
                 retrieved_texts, relevant_texts, k
             )
@@ -37,7 +41,5 @@ class EvalRunner:
         return {
             "recall_at_k": total_recall / num_questions if num_questions else 0.0,
             "mrr": total_mrr / num_questions if num_questions else 0.0,
-            "num_questions": num_questions
+            "num_questions": num_questions,
         }
-
-

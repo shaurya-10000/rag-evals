@@ -1,110 +1,257 @@
 [
   {
-    "question": "When was Acme Corp founded?",
-    "relevant_chunks": [
-      "Acme Corp was founded in 1995 by Jane Doe in Seattle."
-    ]
+    "type": "direct",
+    "question": "What database is used to store vectors?",
+    "expected_answer_chunk": "Postgres + `pgvector` handles millions of embeddings with transactional safety."
   },
   {
-    "question": "What is the company's flagship product, and when was it released?",
-    "relevant_chunks": [
-      "The company's flagship product is the Acme Rocket, released in 2005."
-    ]
+    "type": "direct",
+    "question": "What is the frontend framework used in the stack?",
+    "expected_answer_chunk": "Next.js 15 · Tailwind CSS"
   },
   {
-    "question": "How much annual revenue does Acme Rocket generate?",
-    "relevant_chunks": [
-      "Acme Rocket generates  million in annual revenue."
-    ]
+    "type": "direct",
+    "question": "What is the current Recall@3 score?",
+    "expected_answer_chunk": "Recall@3** | 0.77 (77%)"
   },
   {
-    "question": "What smaller competitor did Acme Corp acquire in 2010?",
-    "relevant_chunks": [
-      "In 2010, Acme Corp acquired a smaller competitor called Beta Dynamics for  million."
-    ]
+    "type": "direct",
+    "question": "What is the current MRR score?",
+    "expected_answer_chunk": "MRR** | 0.77 (77%)"
   },
   {
-    "question": "How many employees does Acme Corp have and in which cities are its offices located?",
-    "relevant_chunks": [
-      "Acme Corp has 500 employees and offices in Seattle, New York, and London."
-    ]
+    "type": "direct",
+    "question": "Which embedding model is used?",
+    "expected_answer_chunk": "Gemini Embedder\n(768 dims)"
   },
   {
-    "question": "When did John Smith become the CEO of Acme Corp?",
-    "relevant_chunks": [
-      "The CEO of Acme Corp is John Smith, who took over in 2015."
-    ]
+    "type": "direct",
+    "question": "What is the chunking strategy called?",
+    "expected_answer_chunk": "Sentence-Aware Chunking"
   },
   {
-    "question": "What is the ticker symbol for Acme Corp on the NASDAQ?",
-    "relevant_chunks": [
-      "Acme Corp is publicly traded on the NASDAQ under the ticker ACME."
-    ]
+    "type": "direct",
+    "question": "What language is the backend written in?",
+    "expected_answer_chunk": "Python 3.11"
   },
   {
-    "question": "Who is Acme Corp's main competitor?",
-    "relevant_chunks": [
-      "Acme Corp's main competitor is Globex Corporation."
-    ]
+    "type": "direct",
+    "question": "What is the name of the LLM provider?",
+    "expected_answer_chunk": "Google Gemini"
   },
   {
-    "question": "In what year did Acme Corp launch a new division focused on AI and machine learning?",
-    "relevant_chunks": [
-      "In 2020, Acme Corp launched a new division focused on AI and machine learning."
-    ]
+    "type": "direct",
+    "question": "What is the CI gate threshold?",
+    "expected_answer_chunk": "eval-gate job fails if recall_at_k < 0.5."
   },
   {
-    "question": "What predictive analytics tool was developed by Acme Corp's AI division?",
-    "relevant_chunks": [
-      "Acme Corp's AI division developed the Acme Neural Net, a predictive analytics tool."
-    ]
+    "type": "direct",
+    "question": "What is the name of the reranker?",
+    "expected_answer_chunk": "Cross-Encoder Reranker"
   },
   {
-    "question": "How many enterprise clients use the Acme Neural Net?",
-    "relevant_chunks": [
-      "The Acme Neural Net is used by 100 enterprise clients."
-    ]
+    "type": "direct",
+    "question": "What is the name of the hybrid search algorithm?",
+    "expected_answer_chunk": "Hybrid Search (BM25 + Vector)"
   },
   {
-    "question": "How much does Acme Corp plan to invest in AI research over the next 3 years?",
-    "relevant_chunks": [
-      "Acme Corp plans to invest  million in AI research over the next 3 years."
-    ]
+    "type": "direct",
+    "question": "What is the name of the streaming protocol?",
+    "expected_answer_chunk": "Server-Sent Events (SSE)"
   },
   {
-    "question": "Where is the company's headquarters located?",
-    "relevant_chunks": [
-      "The company's headquarters is a 10-story building in downtown Seattle."
-    ]
+    "type": "direct",
+    "question": "What is the name of the test file for the eval runner?",
+    "expected_answer_chunk": "test_eval_runner.py"
   },
   {
-    "question": "What was Acme Corp's net income in 2022?",
-    "relevant_chunks": [
-      "Acme Corp reported a net income of  million in 2022."
-    ]
+    "type": "direct",
+    "question": "What is the name of the file that contains the gold set?",
+    "expected_answer_chunk": "eval/gold_set/qa_pairs.json"
   },
   {
-    "question": "By what percentage did the company's stock price rise in 2023?",
-    "relevant_chunks": [
-      "The company's stock price rose 25% in 2023."
-    ]
+    "type": "direct",
+    "question": "What is the name of the pipeline that handles document ingestion?",
+    "expected_answer_chunk": "Ingestion Pipeline"
   },
   {
-    "question": "Who does Acme Corp have a partnership with for AI research?",
-    "relevant_chunks": [
-      "Acme Corp has a partnership with the University of Washington for AI research."
-    ]
+    "type": "direct",
+    "question": "What is the name of the pipeline that handles querying?",
+    "expected_answer_chunk": "Retrieval Pipeline"
   },
   {
-    "question": "What award did Acme Corp win in 2021?",
-    "relevant_chunks": [
-      "Acme Corp won the 'Best Places to Work' award in 2021."
-    ]
+    "type": "direct",
+    "question": "What is the name of the pipeline that handles generation?",
+    "expected_answer_chunk": "Generation Pipeline"
   },
   {
-    "question": "When and through which channels is Acme Corp's customer support available?",
-    "relevant_chunks": [
-      "Acme Corp's customer support is available 24/7 via phone and email."
-    ]
+    "type": "direct",
+    "question": "What is the name of the database extension used?",
+    "expected_answer_chunk": "pgvector"
+  },
+  {
+    "type": "direct",
+    "question": "What is the name of the type checker used?",
+    "expected_answer_chunk": "mypy"
+  },
+  {
+    "type": "direct",
+    "question": "What is the name of the linter used?",
+    "expected_answer_chunk": "Ruff"
+  },
+  {
+    "type": "paraphrased",
+    "question": "Why did we choose Postgres over an in-memory vector store?",
+    "expected_answer_chunk": "We don't use an in-memory vector store. Postgres + `pgvector` handles millions of embeddings with transactional safety."
+  },
+  {
+    "type": "paraphrased",
+    "question": "How do we prevent duplicate documents from being ingested twice?",
+    "expected_answer_chunk": "No duplicate ingestion | `content_hash` unique constraint on the `documents` table."
+  },
+  {
+    "type": "paraphrased",
+    "question": "What happens if the LLM API is down?",
+    "expected_answer_chunk": "The `Generator` catches `Exception` and loops through the `self.models` array."
+  },
+  {
+    "type": "paraphrased",
+    "question": "How much latency does the cross-encoder add?",
+    "expected_answer_chunk": "Adds ~200ms to the query time."
+  },
+  {
+    "type": "paraphrased",
+    "question": "Can I use images in this RAG system?",
+    "expected_answer_chunk": "PNG/JPG | Gemini Vision\n(Image to Text)"
+  },
+  {
+    "type": "paraphrased",
+    "question": "What is the name of the vector dimension size?",
+    "expected_answer_chunk": "768 dims"
+  },
+  {
+    "type": "paraphrased",
+    "question": "What is the name of the search method that uses keyword matching?",
+    "expected_answer_chunk": "BM25"
+  },
+  {
+    "type": "paraphrased",
+    "question": "What is the name of the search method that uses vector similarity?",
+    "expected_answer_chunk": "Vector"
+  },
+  {
+    "type": "paraphrased",
+    "question": "What is the name of the search method that combines both?",
+    "expected_answer_chunk": "Hybrid Search"
+  },
+  {
+    "type": "paraphrased",
+    "question": "What is the name of the file that contains the document ingestion code?",
+    "expected_answer_chunk": "src/rag/ingest/pipeline.py"
+  },
+  {
+    "type": "paraphrased",
+    "question": "What is the name of the file that contains the retriever code?",
+    "expected_answer_chunk": "src/rag/retrieve/retriever.py"
+  },
+  {
+    "type": "paraphrased",
+    "question": "What is the name of the file that contains the generator code?",
+    "expected_answer_chunk": "src/rag/generate/generator.py"
+  },
+  {
+    "type": "paraphrased",
+    "question": "What is the name of the file that contains the reranker code?",
+    "expected_answer_chunk": "src/rag/generate/reranker.py"
+  },
+  {
+    "type": "paraphrased",
+    "question": "What is the name of the file that contains the API code?",
+    "expected_answer_chunk": "src/rag/api/main.py"
+  },
+  {
+    "type": "paraphrased",
+    "question": "What is the name of the file that contains the database models?",
+    "expected_answer_chunk": "src/rag/db_models.py"
+  },
+  {
+    "type": "multi_fact",
+    "question": "What two search methods are combined in the retrieval pipeline?",
+    "expected_answer_chunk": "Hybrid Search (BM25 + Vector)"
+  },
+  {
+    "type": "multi_fact",
+    "question": "What is the name of the monitoring tool used in the eval harness?",
+    "expected_answer_chunk": "The `EvalRunner` calculates: Recall@K, MRR"
+  },
+  {
+    "type": "multi_fact",
+    "question": "How does the system handle both text and images during ingestion?",
+    "expected_answer_chunk": "PDF/MD/TXT | PDF & Text Parser. PNG/JPG | Gemini Vision"
+  },
+  {
+    "type": "multi_fact",
+    "question": "What are the two main guarantees for API reliability?",
+    "expected_answer_chunk": "The API won't crash on LLM outage... The AI cites its sources"
+  },
+  {
+    "type": "multi_fact",
+    "question": "Which two external services are deployed for this project?",
+    "expected_answer_chunk": "Next.js Frontend (Vercel)... FastAPI Server (Render)"
+  },
+  {
+    "type": "multi_fact",
+    "question": "What are the two main types of documents that can be ingested?",
+    "expected_answer_chunk": "PDF/MD/TXT | PDF & Text Parser. PNG/JPG | Gemini Vision"
+  },
+  {
+    "type": "multi_fact",
+    "question": "What are the two main evaluation metrics used?",
+    "expected_answer_chunk": "The `EvalRunner` calculates: Recall@K, MRR"
+  },
+  {
+    "type": "multi_fact",
+    "question": "What are the two main testing frameworks used?",
+    "expected_answer_chunk": "Pytest, Ruff"
+  },
+  {
+    "type": "multi_fact",
+    "question": "What are the two main languages used in the project?",
+    "expected_answer_chunk": "Python 3.11, Next.js 15"
+  },
+  {
+    "type": "multi_fact",
+    "question": "What are the two main components of the retrieval pipeline?",
+    "expected_answer_chunk": "Hybrid Search, Reranker"
+  },
+  {
+    "type": "unanswerable",
+    "question": "What is the CEO's name?",
+    "expected_answer_chunk": "NONE"
+  },
+  {
+    "type": "unanswerable",
+    "question": "How many funding rounds has the company raised?",
+    "expected_answer_chunk": "NONE"
+  },
+  {
+    "type": "unanswerable",
+    "question": "What is the annual revenue of the project?",
+    "expected_answer_chunk": "NONE"
+  },
+  {
+    "type": "unanswerable",
+    "question": "What is the employee headcount at the company?",
+    "expected_answer_chunk": "NONE"
+  },
+  {
+    "type": "unanswerable",
+    "question": "Which cloud provider hosts the production database?",
+    "expected_answer_chunk": "NONE"
+  },
+  {
+    "type": "unanswerable",
+    "question": "What is the name of the current maintainer?",
+    "expected_answer_chunk": "NONE"
   }
 ]

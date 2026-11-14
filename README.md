@@ -22,7 +22,7 @@
 |  |  |
 | :--- | :--- |
 | **What** | A full-stack RAG application that ingests text, PDFs, Markdown, and Images, embeds them using Gemini, and streams grounded answers with citations via a robust fallback chain. |
-| **Why it's interesting** | Most RAG projects just call an LLM on plain text. This project includes **multi-modal ingestion (Vision)**, a **CI-gated evaluation harness** that blocks PRs if retrieval quality drops, a **hierarchical fallback** for high-availability LLM generation, **real-time SSE streaming**, and a **Hybrid Search + Multithreaded Reranker** pipeline. |
+| **Why it's interesting** | Most RAG projects just call an LLM on plain text. This project includes **multi-modal ingestion (Vision)**, a **CI-gated evaluation harness** with 51 curated questions (direct, paraphrased, multi-fact, unanswerable), a **hierarchical fallback** for high-availability LLM generation, **real-time SSE streaming**, and a **Hybrid Search + Multithreaded Reranker** pipeline. |
 | **Stack** | Python 3.11 · FastAPI · SQLAlchemy 2.0 · Postgres (pgvector) · Google Gemini (Vision + Text) · Next.js 15 · Tailwind CSS · Pytest · Ruff · Mypy · GitHub Actions |
 
 ## Contents
@@ -96,7 +96,7 @@ flowchart TD
 | Multi-modal support | PDFs and Images are parsed into text (via PyPDF and Gemini Vision) before embedding. |
 | Real-time streaming | The `/query` endpoint returns an SSE `StreamingResponse`, and the UI renders tokens as they arrive. |
 | Type safety across the board | `mypy --strict` passes on all source files. |
-| CI won't merge regressions | `eval-gate` job fails if `recall_at_k < 0.5`. |
+| CI won't merge regressions | `eval-gate` job fails if `recall_at_k < 0.7`. |
 
 ## Design decisions
 
@@ -115,27 +115,34 @@ flowchart TD
 
 Most RAG projects only test that the API returns a `200 OK`. We test that the AI returns the **correct** answer.
 
-The `eval/gold_set/qa_pairs.json` file contains known questions and the exact chunks that should be retrieved. The `EvalRunner` calculates:
+The `eval/gold_set/qa_pairs.json` file contains **51 curated questions** broken into four categories:
+- **Direct** (20): Exact keyword lookups.
+- **Paraphrased** (15): Same meaning, different words.
+- **Multi-fact** (10): Requires chaining two pieces of information.
+- **Unanswerable** (6): Questions the document cannot answer (used for hallucination testing).
+
+The `EvalRunner` calculates:
 - **Recall@K**: Did we retrieve the right chunk in the top K results?
 - **MRR**: How high did the correct chunk rank?
 
 ### Current Metrics
 
-On our synthetic gold set of 18 questions (generated from 20 distinct facts), the Hybrid Search + Reranker pipeline achieves:
+On our 51-question gold set, the Hybrid Search + Reranker pipeline achieves:
 
 | Metric | Score |
 | :--- | :--- |
 | **Recall@3** | 0.77 (77%) |
-| **MRR** | 0.77 (77%) |
+| **MRR** | 0.65 (65%) |
+| **Questions Evaluated** | 45 (6 unanswerable skipped) |
 
-*(Note: The score dropped slightly from 1.0 to 0.77 after upgrading to sentence-aware chunking, because some synthetic facts were merged into single chunks. This is well above our CI threshold of 0.5).*
+*(Note: The score dropped from a perfect 1.0 when we moved to sentence-aware chunking and harder questions. This is well above our CI threshold of 0.7).*
 
 To run it locally:
 ```bash
 python -m rag.eval.run_eval
 ```
 
-In CI, this is wired into GitHub Actions. If you submit a PR that degrades the retriever, the `RAG Eval Regression Gate` will fail, preventing the merge.
+In CI, this is wired into GitHub Actions. If you submit a PR that degrades the retriever below 0.7 recall, the `RAG Eval Regression Gate` will fail, preventing the merge.
 
 ## Quick start
 
@@ -211,7 +218,7 @@ pytest tests/
 ```text
 .
 ├── .github/workflows/ci.yml    # CI pipeline with Eval Gate
-├── eval/gold_set/              # Known Q&A pairs for evaluation
+├── eval/gold_set/              # 51 curated Q&A pairs for evaluation
 ├── src/rag/
 │   ├── api/                    # FastAPI routes (Multi-modal + SSE streaming)
 │   ├── config/                 # Pydantic settings (loads .env)

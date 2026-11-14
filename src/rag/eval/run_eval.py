@@ -14,7 +14,6 @@ from rag.retrieve.retriever import Retriever
 def main() -> None:
     print("Running evaluation harness...")
     
-    # 1. Setup DB and retriever
     SessionLocal = sessionmaker(bind=engine)
     db = SessionLocal()
     embedder = Embedder(mock=False)
@@ -22,23 +21,20 @@ def main() -> None:
     retriever = Retriever(db=db, embedder=embedder)
     runner = EvalRunner(retriever)
 
-    # 2. Clear existing data (for a clean eval)
     db.query(Chunk).delete()
     db.query(Document).delete()
     db.commit()
 
-    # 3. Ingest the gold set chunks into the DB
     gold_set = runner.load_gold_set("eval/gold_set/qa_pairs.json")
     for item in gold_set:
-        for chunk_text in item["relevant_chunks"]:
-            repo.ingest_document("Eval Doc", chunk_text)
+        expected_chunk = item.get("expected_answer_chunk", "")
+        if expected_chunk and expected_chunk != "NONE":
+            repo.ingest_document("Eval Doc", expected_chunk)
 
-    # 4. Run eval
     results = runner.run(gold_set, k=3)
     print(f"Results: {json.dumps(results, indent=2)}")
 
-    # 5. CI Gate (Temporarily 0.0 for mock embedder)
-    RECALL_THRESHOLD = 0.5
+    RECALL_THRESHOLD = 0.7
     if results["recall_at_k"] < RECALL_THRESHOLD:
         print(f"FAILED: Recall@K ({results['recall_at_k']}) < {RECALL_THRESHOLD}")
         sys.exit(1)
@@ -48,6 +44,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-

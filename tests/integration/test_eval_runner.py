@@ -28,12 +28,13 @@ def test_eval_runner_returns_metrics(db_session):
 
     # Insert a known document
     repo.ingest_document("Eval Doc", "This is the exact text we want to retrieve.")
-    
-    # Dummy gold set matching the inserted data
+
+    # Updated gold set format matching the new runner
     gold_set = [
         {
+            "type": "direct",
             "question": "What exact text?",
-            "relevant_chunks": ["Chunk 1 text"] # Mock embedder returns this
+            "expected_answer_chunk": "This is the exact text we want to retrieve.",
         }
     ]
 
