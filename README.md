@@ -2,7 +2,7 @@
 
 # 🧠 RAG Evals
 
-**A production-grade multi-modal RAG architecture with a CI-gated evaluation harness, hierarchical LLM fallbacks, real-time SSE streaming, and strict type safety.**
+**A production-grade multi-tenant multi-modal RAG architecture with CI-gated evaluation, self-hosted JWT auth, hierarchical LLM fallbacks, and real-time SSE streaming.**
 
 [![CI & Eval Gate](https://github.com/shaurya-10000/rag-evals/actions/workflows/ci.yml/badge.svg)](https://github.com/shaurya-10000/rag-evals/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](./LICENSE)
@@ -21,15 +21,16 @@
 
 |  |  |
 | :--- | :--- |
-| **What** | A full-stack RAG application that ingests text, PDFs, Markdown, and Images, embeds them using Gemini, and streams grounded answers with citations via a robust fallback chain. |
-| **Why it's interesting** | Most RAG projects just call an LLM on plain text. This project includes **multi-modal ingestion (Vision)**, a **CI-gated evaluation harness** with 51 curated questions (direct, paraphrased, multi-fact, unanswerable), a **hierarchical fallback** for high-availability LLM generation, **real-time SSE streaming**, and a **Hybrid Search + Multithreaded Reranker** pipeline. |
-| **Stack** | Python 3.11 · FastAPI · SQLAlchemy 2.0 · Postgres (pgvector) · Google Gemini (Vision + Text) · Next.js 15 · Tailwind CSS · Pytest · Ruff · Mypy · GitHub Actions |
+| **What** | A full-stack RAG application that ingests text, PDFs, Markdown, and Images, embeds them using Gemini, and streams grounded answers with citations. Includes self-hosted JWT auth so each user gets a private knowledge base. |
+| **Why it's interesting** | Most RAG projects are toy demos. This one has **self-hosted JWT auth** (Argon2 hashing, HttpOnly cookies), **multi-modal ingestion (Vision)**, a **CI-gated evaluation harness** with 51 curated questions, a **hierarchical fallback** for high-availability LLM generation, **real-time SSE streaming**, **rate limiting**, **upload size limits**, and a **Hybrid Search + Multithreaded Reranker** pipeline. |
+| **Stack** | Python 3.11 · FastAPI · SQLAlchemy 2.0 · Postgres (pgvector) · Google Gemini (Vision + Text) · Next.js 15 · Tailwind CSS · Passlib/Pwdlib · python-jose · SlowAPI · Pytest · Ruff · Mypy · GitHub Actions |
 
 ## Contents
 
 - [Demo](#demo)
 - [Architecture](#architecture)
 - [Core guarantees](#core-guarantees)
+- [Security](#security)
 - [Design decisions](#design-decisions)
 - [The Evaluation Harness](#the-evaluation-harness)
 - [Quick start](#quick-start)
@@ -51,7 +52,11 @@
 
 ```mermaid
 flowchart TD
-    Client["Next.js Frontend\n(Vercel)"] -->|"Text / PDF / Image"| IngestAPI["FastAPI Ingest"]
+    Client["Next.js Frontend\n(Vercel)"] -->|"Sign Up / Sign In"| AuthAPI["FastAPI /auth"]
+    AuthAPI -->|"Argon2 + JWT"| DB[("PostgreSQL\n(Users + Documents)")]
+    AuthAPI -->|"HttpOnly Cookie"| Client
+
+    Client -->|"Text / PDF / Image\n(X-API-Key + JWT)"| IngestAPI["FastAPI /ingest"]
 
     subgraph "Ingestion Pipeline"
         IngestAPI -->|"PDF/MD/TXT"| PDFParser["PDF & Text Parser"]
@@ -59,10 +64,10 @@ flowchart TD
         PDFParser --> Chunker["Sentence-Aware\nChunker"]
         VisionAPI --> Chunker
         Chunker --> Embedder["Gemini Embedder\n(768 dims)"]
-        Embedder --> DB[("PostgreSQL + pgvector\n(Neon)")]
+        Embedder --> DB
     end
 
-    Client -->|"POST /query (SSE)"| QueryAPI["FastAPI Query"]
+    Client -->|"POST /query (SSE)\n(X-API-Key + JWT)"| QueryAPI["FastAPI /query"]
 
     subgraph "Retrieval Pipeline"
         QueryAPI -->|"1. Embed Query"| Embedder
@@ -83,8 +88,8 @@ flowchart TD
 
 1. **The database is the source of truth for vectors.** We don't use an in-memory vector store. Postgres + `pgvector` handles millions of embeddings with transactional safety.
 2. **Evaluation is a first-class citizen.** You cannot improve what you cannot measure. The eval harness runs both locally and in CI.
-3. **Fail gracefully.** LLMs are external dependencies; they will fail. The fallback chain ensures the user always gets an answer, and vision models gracefully fall back to lighter models.
-4. **Strict boundaries.** Pydantic schemas validate the input. The LLM cannot invent actions or hallucinate citations outside the provided context.
+3. **Fail gracefully.** LLMs are external dependencies; they will fail. The fallback chain ensures the user always gets an answer.
+4. **Security by default.** JWT auth with HttpOnly cookies, Argon2 password hashing, rate limiting, and upload size caps.
 
 ## Core guarantees
 
@@ -98,16 +103,30 @@ flowchart TD
 | Type safety across the board | `mypy --strict` passes on all source files. |
 | CI won't merge regressions | `eval-gate` job fails if `recall_at_k < 0.7`. |
 
+## Security
+
+This project is hardened for public deployment:
+
+| Layer | Mechanism |
+| :--- | :--- |
+| **Authentication** | Self-hosted JWT with Argon2 password hashing (via `pwdlib`). |
+| **Sessions** | HttpOnly cookies with 7-day expiry. JavaScript cannot read them (XSS-resistant). |
+| **Route Protection** | Next.js `middleware.ts` verifies the JWT before rendering protected routes. |
+| **API Keys** | `/ingest` and `/query` require `X-API-Key` header (defense in depth against direct API abuse). |
+| **Rate Limiting** | `slowapi` limits `/query` to 5 req/min and `/ingest` to 3 req/min per IP. |
+| **Upload Size** | Files > 10MB rejected with `413 Payload Too Large`. |
+
 ## Design decisions
 
 | Decision | Why | Trade-off |
 | :--- | :--- | :--- |
 | **Postgres + pgvector, not Pinecone** | Keeps everything in one database; allows transactional rollbacks and RLS. | Requires managing a Postgres instance. |
-| **Hybrid Search (BM25 + Vector)** | Dense vectors miss exact keyword matches (SKUs, names, acronyms). BM25 fixes this. | Adds a `tsvector` column and GIN index. |
-| **Multithreaded Cross-Encoder Reranker** | Bi-encoders (vector search) are fast but imprecise. Cross-encoders are slow but accurate. We multithread the ONNX runtime to drop latency from 28s to ~200ms. | Requires CPU cores to run efficiently. |
-| **Relevance Threshold in Reranker** | If a chunk isn't actually relevant to the query, we drop it from the context instead of forcing 3 chunks. | May return fewer than `top_k` sources for highly specific queries. |
-| **Sentence-Aware Chunking** | Splitting by arbitrary characters cuts words in half. Splitting by sentences preserves semantic meaning. | Slightly more complex logic than a basic character loop. |
-| **Server-Sent Events (SSE) for streaming** | The user sees the AI "typing" in real-time, cutting perceived latency from seconds to milliseconds. | Requires the Next.js API route to act as a pass-through proxy without buffering. |
+| **Self-hosted JWT (not Clerk/Auth0)** | Zero external dependency; users stored in your own Postgres. | You own account recovery, password reset, OAuth (if added). |
+| **Argon2, not bcrypt** | OWASP-recommended. No 72-byte limit. GPU-resistant. | Slightly slower hashing (which is the point). |
+| **Hybrid Search (BM25 + Vector)** | Dense vectors miss exact keyword matches (SKUs, names, acronyms). | Adds a `tsvector` column and GIN index. |
+| **Multithreaded Cross-Encoder Reranker** | Bi-encoders are fast but imprecise. Cross-encoders are slow but accurate. We multithread ONNX to drop latency from 28s → ~200ms. | Requires CPU cores to run efficiently. |
+| **Sentence-Aware Chunking** | Splitting by arbitrary characters cuts words in half. | Slightly more complex than a character loop. |
+| **Server-Sent Events (SSE)** | Real-time streaming; perceived latency drops from seconds to milliseconds. | Requires the Next.js route to proxy without buffering. |
 
 ---
 
@@ -115,7 +134,7 @@ flowchart TD
 
 Most RAG projects only test that the API returns a `200 OK`. We test that the AI returns the **correct** answer.
 
-The `eval/gold_set/qa_pairs.json` file contains **51 curated questions** broken into four categories:
+The `eval/gold_set/qa_pairs.json` file contains **51 curated questions** in four categories:
 - **Direct** (20): Exact keyword lookups.
 - **Paraphrased** (15): Same meaning, different words.
 - **Multi-fact** (10): Requires chaining two pieces of information.
@@ -127,22 +146,20 @@ The `EvalRunner` calculates:
 
 ### Current Metrics
 
-On our 51-question gold set, the Hybrid Search + Reranker pipeline achieves:
-
 | Metric | Score |
 | :--- | :--- |
 | **Recall@3** | 0.77 (77%) |
 | **MRR** | 0.65 (65%) |
 | **Questions Evaluated** | 45 (6 unanswerable skipped) |
 
-*(Note: The score dropped from a perfect 1.0 when we moved to sentence-aware chunking and harder questions. This is well above our CI threshold of 0.7).*
+*(Note: The score dropped from a perfect 1.0 after moving to sentence-aware chunking and harder questions. This is well above our CI threshold of 0.7).*
 
 To run it locally:
 ```bash
 python -m rag.eval.run_eval
 ```
 
-In CI, this is wired into GitHub Actions. If you submit a PR that degrades the retriever below 0.7 recall, the `RAG Eval Regression Gate` will fail, preventing the merge.
+In CI, this is wired into GitHub Actions. If you submit a PR that degrades the retriever below 0.7 recall, the `RAG Eval Regression Gate` will fail.
 
 ## Quick start
 
@@ -156,10 +173,12 @@ cd rag-evals
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
+pip install "pwdlib[argon2]" python-jose[cryptography] "pydantic[email]" python-multipart slowapi
 
 # Frontend setup
 cd web
 npm install
+npm install jose
 cd ..
 
 # Start the database
@@ -167,24 +186,33 @@ docker run -d --name rag-evals-db -p 5432:5432 -e POSTGRES_USER=postgres -e POST
 alembic upgrade head
 ```
 
-1. Create a `.env` file:
+1. Create a `.env` file (root):
    ```env
    DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/rag_evals
    GEMINI_API_KEY=your-key-here
+   RAG_API_KEY=<random-32-char-string>
+   JWT_SECRET=<random-32-char-string>
    ```
 
-2. Start the backend:
+2. Create `web/.env.local`:
+   ```env
+   NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:8000
+   NEXT_PUBLIC_RAG_API_KEY=<same-as-RAG_API_KEY>
+   JWT_SECRET=<same-as-JWT_SECRET>
+   ```
+
+3. Start the backend:
    ```bash
    uvicorn rag.api.main:app --reload
    ```
 
-3. Start the frontend (in a new terminal):
+4. Start the frontend (in a new terminal):
    ```bash
    cd web
    npm run dev
    ```
 
-Open [http://localhost:3000](http://localhost:3000) to use the chat interface.
+Open [http://localhost:3000](http://localhost:3000). You'll be redirected to `/sign-in` → click "Create one" → sign up.
 
 ## Environment variables
 
@@ -192,22 +220,22 @@ Open [http://localhost:3000](http://localhost:3000) to use the chat interface.
 | :--- | :--- | :---: | :--- |
 | `DATABASE_URL` | Backend | ✅ | Postgres connection string |
 | `GEMINI_API_KEY` | Backend | ✅ | Enables embeddings, vision, and generation |
+| `RAG_API_KEY` | Backend | ✅ | Protects `/ingest` and `/query` from direct abuse |
+| `JWT_SECRET` | Backend | ✅ | Signs/verifies auth tokens |
 | `NEXT_PUBLIC_BACKEND_URL` | Frontend | ✅ | The URL of the deployed backend API |
+| `NEXT_PUBLIC_RAG_API_KEY` | Frontend | ✅ | Must match `RAG_API_KEY` |
+| `JWT_SECRET` | Frontend | ✅ | Must match backend `JWT_SECRET` |
 
 ## Testing
 
-We separate unit tests from integration tests.
-
 ```bash
-# Run unit tests (Fast, uses mock embedder)
+# Unit tests (fast, mock embedder)
 pytest tests/unit
 
-# Run integration tests (Hits the real Docker Postgres)
+# Integration tests (real Postgres)
 pytest tests/integration
-```
 
-Pre-flight before pushing:
-```bash
+# Pre-flight before pushing
 ruff check .
 mypy src
 pytest tests/
@@ -218,31 +246,38 @@ pytest tests/
 ```text
 .
 ├── .github/workflows/ci.yml    # CI pipeline with Eval Gate
-├── eval/gold_set/              # 51 curated Q&A pairs for evaluation
+├── eval/gold_set/              # 51 curated Q&A pairs
 ├── src/rag/
-│   ├── api/                    # FastAPI routes (Multi-modal + SSE streaming)
-│   ├── config/                 # Pydantic settings (loads .env)
-│   ├── db_models.py            # SQLAlchemy models (Document, Chunk)
+│   ├── api/                    # FastAPI routes (multi-modal + SSE + auth)
+│   ├── auth/                   # JWT + Argon2 password utilities
+│   ├── config/                 # Pydantic settings
+│   ├── db_models.py            # User, Document, Chunk models
 │   ├── eval/                   # Metrics (Recall, MRR) and runner
-│   ├── generate/               # LLM Generator (streaming) & Multithreaded Reranker
+│   ├── generate/               # Streaming LLM + Multithreaded Reranker
 │   ├── ingest/                 # Sentence-aware chunking
 │   ├── migrations/             # Alembic migrations
 │   ├── repository.py           # Idempotent DB operations
 │   └── retrieve/               # Hybrid Retriever and Embedder
-├── web/                        # Next.js frontend (Tabbed chat + ingest UI)
+├── web/                        # Next.js frontend (tabbed UI + auth)
 └── tests/                      # Unit and integration tests
 ```
 
 ## Known limitations
 
-- **Cold starts on Render.** The free tier spins down after 15 minutes. The first request takes ~30 seconds.
-- **Free-tier Gemini quotas.** Vision and generation models have strict daily request limits on the free tier.
+- **Shared knowledge base.** All users currently see the same documents. Per-user isolation is on the roadmap.
+- **Cold starts on Render.** Free tier spins down after 15 min. First request takes ~30s.
+- **Free-tier Gemini quotas.** Vision and generation have strict daily limits on the free tier.
 
 ## Roadmap
 
-- [ ] Implement RAGAS for generation metrics (Faithfulness, Answer Relevance).
-- [ ] Add user authentication (Clerk or Supabase Auth).
-- [ ] Add multi-document chat sessions (persist chat history in Postgres).
+- [x] Real-time SSE streaming
+- [x] Multi-modal ingestion (PDF, Images)
+- [x] Self-hosted JWT auth
+- [x] Rate limiting + upload limits
+- [ ] Per-user document isolation (`user_id` FK on Document)
+- [ ] OAuth (Google Sign-In)
+- [ ] RAGAS generation metrics (Faithfulness, Answer Relevance)
+- [ ] Persistent chat history in Postgres
 
 ---
 

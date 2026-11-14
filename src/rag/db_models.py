@@ -12,6 +12,17 @@ class Base(DeclarativeBase):
     pass
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+
 class Document(Base):
     __tablename__ = "documents"
 
@@ -46,7 +57,6 @@ class Chunk(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(768), nullable=True)
     
-    # Use the native TSVECTOR type
     search_vector: Mapped[Any | None] = mapped_column(TSVECTOR, nullable=True)
     
     metadata_col: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
