@@ -1,17 +1,38 @@
 import hashlib
+import re
 from typing import Any
 
 
 class DocumentChunker:
-    """Splits text into chunks. Pluggable for ablations later."""
+    """Splits text into chunks, preserving words and sentence boundaries."""
     def __init__(self, chunk_size: int = 1000, overlap: int = 100):
         self.chunk_size = chunk_size
         self.overlap = overlap
 
     def split(self, text: str) -> list[str]:
+        # Normalize whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        # Split by sentence boundaries (approximate)
+        sentences = re.split(r'(?<=[.!?]) +', text)
+        
         chunks = []
-        for i in range(0, len(text), self.chunk_size - self.overlap):
-            chunks.append(text[i:i + self.chunk_size])
+        current_chunk = []
+        current_length = 0
+        
+        for sentence in sentences:
+            if current_length + len(sentence) <= self.chunk_size:
+                current_chunk.append(sentence)
+                current_length += len(sentence) + 1
+            else:
+                if current_chunk:
+                    chunks.append(" ".join(current_chunk))
+                current_chunk = [sentence]
+                current_length = len(sentence)
+                
+        if current_chunk:
+            chunks.append(" ".join(current_chunk))
+            
         return chunks
 
 

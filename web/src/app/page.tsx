@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Send, Loader2, Bot, User } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Send, Loader2, Bot, User, Database, UploadCloud, FileText, Type } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 type Chunk = { id: string; content: string; metadata: Record<string, unknown> };
@@ -12,15 +12,66 @@ export default function Home() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const seedDatabase = async () => {
-    setIsLoading(true);
+  // Ingest State
+  const [ingestMode, setIngestMode] = useState<'text' | 'file'>('text');
+  const [docTitle, setDocTitle] = useState('');
+  const [docText, setDocText] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isIngesting, setIsIngesting] = useState(false);
+  const [ingestStatus, setIngestStatus] = useState('');
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setFile(e.target.files[0]);
+      if (!docTitle) {
+        setDocTitle(e.target.files[0].name.split('.')[0]);
+      }
+    }
+  };
+
+  const handleIngest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!docTitle.trim() || isIngesting) return;
+
+    setIsIngesting(true);
+    setIngestStatus('Ingesting...');
+
     try {
-      await fetch('/api/seed', { method: 'POST' });
-      alert('Resume ingested into database!');
-    } catch {
-      alert('Failed to seed');
+      let res;
+      if (ingestMode === 'text') {
+        if (docText.trim().length < 10) throw new Error('Text must be at least 10 characters.');
+        res = await fetch('/api/seed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: docTitle, text: docText }),
+        });
+      } else {
+        if (!file) throw new Error('Please select a file.');
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('title', docTitle);
+        res = await fetch('/api/seed', {
+          method: 'POST',
+          body: formData,
+        });
+      }
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to ingest');
+      
+      setIngestStatus('Successfully added!');
+      setDocTitle('');
+      setDocText('');
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      
+      setTimeout(() => setIngestStatus(''), 3000);
+    } catch (err) {
+      setIngestStatus(`Error: ${err instanceof Error ? err.message : 'Failed'}`);
     } finally {
-      setIsLoading(false);
+      setIsIngesting(false);
     }
   };
 
@@ -55,92 +106,190 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-neutral-950 text-neutral-200">
-      <header className="p-4 border-b border-neutral-800 text-center">
-        <h1 className="text-xl font-bold flex items-center justify-center gap-2">
-          <button onClick={seedDatabase} className="absolute left-4 text-sm bg-neutral-800 hover:bg-neutral-700 px-3 py-1 rounded-md transition-colors" type="button">
-            Seed Resume
-          </button>
-          <Bot className="w-6 h-6 text-emerald-400" />
-          RAG Evals Chat
-        </h1>
-      </header>
-
-      <main className="flex-1 overflow-y-auto p-4 space-y-6 max-w-3xl mx-auto w-full">
-        {messages.length === 0 && (
-          <div className="text-center text-neutral-500 mt-20">
-            <p>Ask a question about the documents in the database.</p>
-          </div>
-        )}
+    <div className="flex h-screen bg-neutral-950 text-neutral-200">
+      
+      {/* LEFT SIDEBAR */}
+      <aside className="w-1/3 min-w-[350px] border-r border-neutral-800 flex flex-col bg-neutral-900/50">
+        <div className="p-4 border-b border-neutral-800 flex items-center gap-2">
+          <Database className="w-5 h-5 text-emerald-400" />
+          <h2 className="font-bold text-lg">Knowledge Base</h2>
+        </div>
         
-        {messages.map((msg, i) => {
-          const isUser = msg.role === 'user';
-          const rowClass = isUser ? 'flex gap-3 justify-end' : 'flex gap-3 justify-start';
-          const bubbleClass = isUser 
-            ? 'max-w-[80%] rounded-2xl p-4 bg-emerald-600 text-white' 
-            : 'max-w-[80%] rounded-2xl p-4 bg-neutral-900 border border-neutral-800';
+        <div className="p-4 flex flex-col gap-4 flex-1">
+          {/* TABS */}
+          <div className="flex p-1 bg-neutral-950 rounded-lg border border-neutral-800">
+            <button
+              onClick={() => setIngestMode('text')}
+              className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-sm font-medium rounded-md transition-colors ${ingestMode === 'text' ? 'bg-neutral-800 text-white' : 'text-neutral-400 hover:text-neutral-200'}`}
+            >
+              <Type className="w-4 h-4" /> Text
+            </button>
+            <button
+              onClick={() => setIngestMode('file')}
+              className={`flex-1 flex items-center justify-center gap-2 py-1.5 text-sm font-medium rounded-md transition-colors ${ingestMode === 'file' ? 'bg-neutral-800 text-white' : 'text-neutral-400 hover:text-neutral-200'}`}
+            >
+              <UploadCloud className="w-4 h-4" /> Files
+            </button>
+          </div>
 
-          return (
-            <div key={i} className={rowClass}>
-              {!isUser && <Bot className="w-6 h-6 text-emerald-400 shrink-0 mt-1" />}
-              
-              <div className={bubbleClass}>
-                {!isUser ? (
-                  <div className="prose prose-invert prose-sm"><ReactMarkdown>
-                    {msg.content}
-                  </ReactMarkdown></div>
-                ) : (
-                  <p>{msg.content}</p>
-                )}
-                
-                {msg.chunks && msg.chunks.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Sources</p>
-                    {msg.chunks.map((chunk, j) => (
-                      <div key={j} className="text-xs bg-neutral-950 p-2 rounded border border-neutral-800 text-neutral-400">
-                        <span className="text-emerald-500 font-bold mr-1">[{j + 1}]</span>
-                        {chunk.content}
-                      </div>
-                    ))}
-                  </div>
-                )}
+          <form onSubmit={handleIngest} className="flex flex-col gap-4 flex-1">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-400 uppercase mb-1">Document Title</label>
+              <input
+                type="text"
+                value={docTitle}
+                onChange={(e) => setDocTitle(e.target.value)}
+                placeholder="e.g., Company Handbook"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-md py-2 px-3 text-sm focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            {ingestMode === 'text' ? (
+              <div className="flex-1 flex flex-col">
+                <div className="flex justify-between items-end mb-1">
+                  <label className="block text-xs font-semibold text-neutral-400 uppercase">Text Content</label>
+                  <span className={`text-[10px] ${docText.length > 0 && docText.length < 10 ? 'text-red-400' : 'text-neutral-500'}`}>
+                    {docText.length}/10 chars
+                  </span>
+                </div>
+                <textarea
+                  value={docText}
+                  onChange={(e) => setDocText(e.target.value)}
+                  placeholder="Paste your text here (min 10 chars)..."
+                  className="w-full flex-1 bg-neutral-950 border border-neutral-800 rounded-md py-2 px-3 text-sm focus:outline-none focus:border-emerald-500 resize-none"
+                />
               </div>
-              
-              {isUser && <User className="w-6 h-6 text-neutral-400 shrink-0 mt-1" />}
-            </div>
-          );
-        })}
-        
-        {isLoading && (
-          <div className="flex gap-3">
-            <Bot className="w-6 h-6 text-emerald-400 shrink-0 mt-1" />
-            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
-              <Loader2 className="w-5 h-5 animate-spin text-neutral-400" />
-            </div>
-          </div>
-        )}
-      </main>
+            ) : (
+              <div className="flex-1 flex flex-col">
+                <label className="block text-xs font-semibold text-neutral-400 uppercase mb-1">Upload File (.pdf, .txt, .md, .png, .jpg)</label>
+                <div 
+                  className="flex-1 border-2 border-dashed border-neutral-800 hover:border-emerald-500/50 rounded-md flex flex-col items-center justify-center p-6 cursor-pointer bg-neutral-950 transition-colors relative"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleFileChange} 
+                    accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp" 
+                    className="hidden" 
+                  />
+                  {file ? (
+                    <div className="text-center">
+                      <FileText className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+                      <p className="text-sm font-medium text-neutral-200">{file.name}</p>
+                      <p className="text-xs text-neutral-500">{(file.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                  ) : (
+                    <div className="text-center text-neutral-500">
+                      <UploadCloud className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">Click to select a file</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
-      <footer className="p-4 border-t border-neutral-800 max-w-3xl mx-auto w-full">
-        <form onSubmit={sendMessage} className="relative">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a question..."
-            className="w-full bg-neutral-900 border border-neutral-800 rounded-full py-3 px-6 pr-12 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
-          />
-          <button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full transition-colors disabled:opacity-50"
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        </form>
-      </footer>
+            <button
+              type="submit"
+              disabled={isIngesting || !docTitle.trim() || (ingestMode === 'text' ? docText.trim().length < 10 : !file)}
+              className="flex items-center justify-center gap-2 w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-md transition-colors disabled:opacity-50"
+            >
+              {isIngesting ? <Loader2 className="w-4 h-4 animate-spin" /> : (ingestMode === 'text' ? <Database className="w-4 h-4" /> : <UploadCloud className="w-4 h-4" />)}
+              {isIngesting ? 'Ingesting...' : 'Ingest'}
+            </button>
+            
+            {ingestStatus && (
+              <p className={`text-xs text-center ${ingestStatus.includes('Error') ? 'text-red-400' : 'text-emerald-400'}`}>
+                {ingestStatus}
+              </p>
+            )}
+          </form>
+        </div>
+      </aside>
+
+      {/* RIGHT SIDE: Chat */}
+      <main className="flex-1 flex flex-col">
+        <header className="p-4 border-b border-neutral-800 text-center">
+          <h1 className="text-xl font-bold flex items-center justify-center gap-2">
+            <Bot className="w-6 h-6 text-emerald-400" />
+            RAG Evals Chat
+          </h1>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-6 max-w-4xl mx-auto w-full">
+          {messages.length === 0 && (
+            <div className="text-center text-neutral-500 mt-20">
+              <p>Ask a question about the documents in your knowledge base.</p>
+            </div>
+          )}
+          
+          {messages.map((msg, i) => {
+            const isUser = msg.role === 'user';
+            const rowClass = isUser ? 'flex gap-3 justify-end' : 'flex gap-3 justify-start';
+            const bubbleClass = isUser 
+              ? 'max-w-[80%] rounded-2xl p-4 bg-emerald-600 text-white' 
+              : 'max-w-[80%] rounded-2xl p-4 bg-neutral-900 border border-neutral-800';
+
+            return (
+              <div key={i} className={rowClass}>
+                {!isUser && <Bot className="w-6 h-6 text-emerald-400 shrink-0 mt-1" />}
+                
+                <div className={bubbleClass}>
+                  {!isUser ? (
+                    <div className="prose prose-invert prose-sm"><ReactMarkdown>
+                      {msg.content}
+                    </ReactMarkdown></div>
+                  ) : (
+                    <p>{msg.content}</p>
+                  )}
+                  
+                  {msg.chunks && msg.chunks.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Sources</p>
+                      {msg.chunks.map((chunk, j) => (
+                        <div key={j} className="text-xs bg-neutral-950 p-2 rounded border border-neutral-800 text-neutral-400">
+                          <span className="text-emerald-500 font-bold mr-1">[{j + 1}]</span>
+                          {chunk.content}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                {isUser && <User className="w-6 h-6 text-neutral-400 shrink-0 mt-1" />}
+              </div>
+            );
+          })}
+          
+          {isLoading && (
+            <div className="flex gap-3">
+              <Bot className="w-6 h-6 text-emerald-400 shrink-0 mt-1" />
+              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
+                <Loader2 className="w-5 h-5 animate-spin text-neutral-400" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <footer className="p-4 border-t border-neutral-800 max-w-4xl mx-auto w-full">
+          <form onSubmit={sendMessage} className="relative">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask a question about your documents..."
+              className="w-full bg-neutral-900 border border-neutral-800 rounded-full py-3 px-6 pr-12 text-sm focus:outline-none focus:border-emerald-500 transition-colors"
+            />
+            <button
+              type="submit"
+              disabled={isLoading || !input.trim()}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full transition-colors disabled:opacity-50"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </form>
+        </footer>
+      </main>
     </div>
   );
 }
-
-

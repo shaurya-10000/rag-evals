@@ -9,10 +9,14 @@ def test_compute_hash_is_deterministic():
     assert len(hash1) == 64  # SHA-256 length
 
 def test_chunker_splits_correctly():
-    chunker = DocumentChunker(chunk_size=10, overlap=2)
-    text = "123456789012345"
+    chunker = DocumentChunker(chunk_size=100, overlap=10)
+    text = "Short sentence one. Short sentence two."
     chunks = chunker.split(text)
-    # 10 chars, then 10 chars starting from index 8
-    assert len(chunks) == 2
-    assert chunks[0] == "1234567890"
-    assert chunks[1] == "9012345"
+    assert len(chunks) == 1
+    assert chunks[0] == text
+    
+    # Test a long text that forces a split
+    long_text = "A" * 60 + ". " + "B" * 60 + "."
+    chunker_small = DocumentChunker(chunk_size=50, overlap=10)
+    chunks = chunker_small.split(long_text)
+    assert len(chunks) > 1

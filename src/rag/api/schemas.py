@@ -4,11 +4,6 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
-class IngestRequest(BaseModel):
-    title: str = Field(..., max_length=255)
-    text: str = Field(..., min_length=10)
-    source_url: str | None = None
-
 class IngestResponse(BaseModel):
     document_id: UUID
     status: str
