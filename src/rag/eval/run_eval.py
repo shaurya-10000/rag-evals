@@ -18,7 +18,7 @@ def main() -> None:
 
     SessionLocal = sessionmaker(bind=engine)
     db = SessionLocal()
-    embedder = Embedder(mock=False)
+    embedder = Embedder(mock=True)
     repo = DocumentRepository(db=db, embedder=embedder)
     retriever = Retriever(db=db, embedder=embedder)
     runner = EvalRunner(retriever)
@@ -63,3 +63,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+

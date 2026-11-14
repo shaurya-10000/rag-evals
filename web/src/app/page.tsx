@@ -61,7 +61,17 @@ export default function Home() {
 
   // Chat Handlers
   const startNewChat = () => {
-    setActiveChatId(null);
+    const newId = Date.now().toString();
+    const newChat: ChatSession = {
+      id: newId,
+      title: "New Chat",
+      messages: [],
+      pinned: false,
+      createdAt: Date.now()
+    };
+    
+    setChats(prev => [newChat, ...prev]);
+    setActiveChatId(newId);
     setMessages([]);
     setInput('');
     setActiveTab('chat');
@@ -249,16 +259,22 @@ export default function Home() {
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="fixed inset-y-3 left-3 z-[70] flex w-72 flex-col rounded-[2rem] border border-neutral-200 dark:border-white/[0.08] bg-white dark:bg-[#0a0a0a] shadow-2xl shadow-black/10 dark:shadow-black/80 overflow-hidden"
           >
-            <div className="p-4 flex items-center justify-between border-b border-neutral-200 dark:border-white/[0.06]">
-              <span className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">History</span>
-              <button onClick={startNewChat} className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/[0.06] rounded-md text-emerald-600 dark:text-emerald-400" title="New Chat">
-                <Plus className="w-4 h-4" />
-              </button>
+            <div className="flex items-center justify-between p-4 pb-2">
+              <span className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">Chats</span>
+              <div className="flex items-center gap-1">
+                <button onClick={startNewChat} className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/[0.06] rounded-lg text-neutral-500 dark:text-neutral-400 transition-colors" title="New Chat">
+                  <Plus className="w-4 h-4" />
+                </button>
+                <button onClick={() => setSidebarOpen(false)} className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/[0.06] rounded-lg text-neutral-500 dark:text-neutral-400 transition-colors" title="Close Sidebar">
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
+              </div>
             </div>
+            
             
             <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin">
               {sortedChats.length === 0 ? (
-                <div className="text-xs text-center text-neutral-500 py-4 mt-4">No history yet.</div>
+                <div className="text-xs text-center text-neutral-500 py-4 mt-4">No chats yet.</div>
               ) : (
                 sortedChats.map(chat => (
                   <div 
@@ -308,11 +324,7 @@ export default function Home() {
               )}
             </div>
 
-            <div className="p-3 border-t border-neutral-200 dark:border-white/[0.06]">
-              <button onClick={() => setSidebarOpen(false)} className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold text-neutral-500 hover:bg-neutral-100 dark:hover:bg-white/[0.04] transition-colors">
-                <PanelLeftClose className="w-4 h-4" /> Close Sidebar
-              </button>
-            </div>
+            
           </motion.aside>
         )}
       </AnimatePresence>
@@ -545,3 +557,7 @@ export default function Home() {
     </div>
   );
 }
+
+
+
+
