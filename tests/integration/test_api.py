@@ -2,13 +2,16 @@ import uuid
 
 from fastapi.testclient import TestClient
 
-from rag.api.main import app, get_generator, get_reranker
+from rag.api.main import app, get_embedder, get_generator, get_reranker
 from rag.config.settings import settings
 from rag.generate.generator import Generator
 from rag.generate.reranker import Reranker
+from rag.retrieve.embedder import Embedder
 
 client = TestClient(app)
 
+# Use mocks for all external AI services to prevent 429 Rate Limits in CI
+app.dependency_overrides[get_embedder] = lambda: Embedder(mock=True)
 app.dependency_overrides[get_generator] = lambda: Generator(mock=True)
 app.dependency_overrides[get_reranker] = lambda: Reranker(mock=True)
 

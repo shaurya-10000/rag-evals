@@ -6,6 +6,7 @@ def test_document_model_instantiation():
     assert doc.title == "Test Doc"
     assert doc.chunks == []
 
+
 def test_chunk_model_instantiation():
     chunk = Chunk(content="This is a chunk.", document_id="123")
     assert chunk.content == "This is a chunk."

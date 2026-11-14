@@ -39,9 +39,7 @@ def test_eval_runner_returns_metrics(db_session):
     db_session.commit()
     db_session.refresh(user)
 
-    repo.ingest_document(
-        user.id, "Eval Doc", "This is the exact text we want to retrieve."
-    )
+    repo.ingest_document(user.id, "Eval Doc", "This is the exact text we want to retrieve.")
 
     gold_set = [
         {
