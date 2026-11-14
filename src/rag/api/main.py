@@ -24,8 +24,10 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from rag.api.auth import router as auth_router
 from rag.api.schemas import IngestResponse, QueryRequest
+from rag.auth.utils import get_current_user
 from rag.config.settings import settings
 from rag.db import get_db
+from rag.db_models import User
 from rag.generate.generator import Generator
 from rag.generate.reranker import Reranker
 from rag.repository import DocumentRepository
@@ -93,12 +95,13 @@ def health_check() -> dict[str, str]:
 @limiter.limit("3/minute")
 async def ingest(
     request: Request,
-    db: Session = Depends(get_db),
-    embedder: Embedder = Depends(get_embedder),
-    _: str = Depends(verify_api_key),
+    db: Session = Depends(get_db),  # noqa: B008
+    embedder: Embedder = Depends(get_embedder),  # noqa: B008
+    _: str = Depends(verify_api_key),  # noqa: B008
+    current_user: User = Depends(get_current_user),  # noqa: B008
 ) -> IngestResponse:
     request_id = str(uuid.uuid4())[:8]
-    logger.info(f"[{request_id}] Ingest started")
+    logger.info(f"[{request_id}] Ingest started for user={current_user.username}")
 
     content_type = request.headers.get("content-type", "")
     text = ""
@@ -183,7 +186,9 @@ async def ingest(
         raise HTTPException(status_code=415, detail="Unsupported Media Type")
 
     repo = DocumentRepository(db=db, embedder=embedder)
-    doc = repo.ingest_document(title=title, text=text, source_url=source)
+    doc = repo.ingest_document(
+        user_id=current_user.id, title=title, text=text, source_url=source
+    )
     logger.info(f"[{request_id}] Ingest done. doc_id={doc.id}")
     return IngestResponse(document_id=doc.id, status="ingested")
 
@@ -193,18 +198,23 @@ async def ingest(
 def query(
     request: Request,
     payload: QueryRequest,
-    db: Session = Depends(get_db),
-    embedder: Embedder = Depends(get_embedder),
-    generator: Generator = Depends(get_generator),
-    reranker: Reranker = Depends(get_reranker),
-    _: str = Depends(verify_api_key),
+    db: Session = Depends(get_db),  # noqa: B008
+    embedder: Embedder = Depends(get_embedder),  # noqa: B008
+    generator: Generator = Depends(get_generator),  # noqa: B008
+    reranker: Reranker = Depends(get_reranker),  # noqa: B008
+    _: str = Depends(verify_api_key),  # noqa: B008
+    current_user: User = Depends(get_current_user),  # noqa: B008
 ) -> StreamingResponse:
     request_id = str(uuid.uuid4())[:8]
-    logger.info(f"[{request_id}] Query: '{payload.query[:60]}'")
+    logger.info(
+        f"[{request_id}] Query from user={current_user.username}: '{payload.query[:60]}'"
+    )
 
     t_start = time.perf_counter()
     retriever = Retriever(db=db, embedder=embedder)
-    candidates = retriever.search(query=payload.query, top_k=RERANK_CANDIDATES)
+    candidates = retriever.search(
+        query=payload.query, user_id=current_user.id, top_k=RERANK_CANDIDATES
+    )
     t_retrieve = time.perf_counter()
 
     final_chunks = reranker.rerank(
@@ -249,4 +259,3 @@ def query(
             "X-Accel-Buffering": "no",
         },
     )
-

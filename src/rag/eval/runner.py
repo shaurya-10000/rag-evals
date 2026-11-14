@@ -28,7 +28,7 @@ class EvalRunner:
             num_questions += 1
             relevant_texts = {expected_chunk}
 
-            retrieved_chunks = self.retriever.search(query=question, top_k=k)
+            retrieved_chunks = self.retriever.search(query=question, user_id=None, top_k=k)
             retrieved_texts = [c.content for c in retrieved_chunks]
 
             total_recall += RetrievalMetrics.recall_at_k(
@@ -43,3 +43,4 @@ class EvalRunner:
             "mrr": total_mrr / num_questions if num_questions else 0.0,
             "num_questions": num_questions,
         }
+

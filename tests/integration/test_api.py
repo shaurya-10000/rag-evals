@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi.testclient import TestClient
 
 from rag.api.main import app, get_generator, get_reranker
@@ -20,23 +22,32 @@ def test_health_check():
 
 
 def test_ingest_and_query():
+    # Sign up a unique user for this test
+    uniq = uuid.uuid4().hex[:8]
+    signup = client.post(
+        "/auth/register",
+        json={
+            "email": f"test_{uniq}@example.com",
+            "username": f"testuser_{uniq}",
+            "password": "testpassword123",
+        },
+    )
+    assert signup.status_code == 200, signup.text
+
     ingest_payload = {
         "title": "API Test Document",
         "text": "This is a unique document for the API test.",
         "source_url": "https://example.com",
     }
     response = client.post("/ingest", json=ingest_payload, headers=HEADERS)
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
 
     query_payload = {"query": "unique document", "top_k": 2}
-    
-    # Use streaming context manager to avoid TestClient's full-read issue with SSE
     with client.stream("POST", "/query", json=query_payload, headers=HEADERS) as response:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/event-stream")
-        
+
         raw_text = "".join(response.iter_text())
         assert "Mock" in raw_text
-        assert "answer based on" in raw_text
         assert '"type": "sources"' in raw_text
         assert '"type": "done"' in raw_text

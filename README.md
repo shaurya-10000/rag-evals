@@ -2,7 +2,7 @@
 
 # 🧠 RAG Evals
 
-**A production-grade multi-tenant multi-modal RAG architecture with CI-gated evaluation, self-hosted JWT auth, hierarchical LLM fallbacks, and real-time SSE streaming.**
+**A production-grade multi-tenant RAG architecture with per-user isolation, self-hosted JWT auth, real-time SSE streaming, and a CI-gated evaluation harness.**
 
 [![CI & Eval Gate](https://github.com/shaurya-10000/rag-evals/actions/workflows/ci.yml/badge.svg)](https://github.com/shaurya-10000/rag-evals/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](./LICENSE)
@@ -21,16 +21,16 @@
 
 |  |  |
 | :--- | :--- |
-| **What** | A full-stack RAG application that ingests text, PDFs, Markdown, and Images, embeds them using Gemini, and streams grounded answers with citations. Includes self-hosted JWT auth so each user gets a private knowledge base. |
-| **Why it's interesting** | Most RAG projects are toy demos. This one has **self-hosted JWT auth** (Argon2 hashing, HttpOnly cookies), **multi-modal ingestion (Vision)**, a **CI-gated evaluation harness** with 51 curated questions, a **hierarchical fallback** for high-availability LLM generation, **real-time SSE streaming**, **rate limiting**, **upload size limits**, and a **Hybrid Search + Multithreaded Reranker** pipeline. |
-| **Stack** | Python 3.11 · FastAPI · SQLAlchemy 2.0 · Postgres (pgvector) · Google Gemini (Vision + Text) · Next.js 15 · Tailwind CSS · Passlib/Pwdlib · python-jose · SlowAPI · Pytest · Ruff · Mypy · GitHub Actions |
+| **What** | A multi-tenant RAG SaaS where each user signs up, ingests their own documents (text/PDF/images), and chats with a private knowledge base. Includes streaming SSE responses, self-hosted auth, and CI-gated evaluation. |
+| **Why it's interesting** | Most RAG projects are toy demos. This one has **per-user document isolation** (Alice can't see Bob's documents), **self-hosted JWT auth** (Argon2 + HttpOnly cookies), **multi-modal ingestion** (Vision), a **51-question evaluation harness** with CI gating, **real-time SSE streaming**, **rate limiting**, and a **Hybrid Search + Multithreaded Reranker** pipeline. |
+| **Stack** | Python 3.11 · FastAPI · SQLAlchemy 2.0 · Postgres (pgvector) · Google Gemini (Vision + Text) · Next.js 15 · Tailwind CSS · Pwdlib/Argon2 · python-jose · SlowAPI · Pytest · Ruff · Mypy · GitHub Actions |
 
 ## Contents
 
 - [Demo](#demo)
 - [Architecture](#architecture)
 - [Core guarantees](#core-guarantees)
-- [Security](#security)
+- [Security & multi-tenancy](#security--multi-tenancy)
 - [Design decisions](#design-decisions)
 - [The Evaluation Harness](#the-evaluation-harness)
 - [Quick start](#quick-start)
@@ -53,12 +53,12 @@
 ```mermaid
 flowchart TD
     Client["Next.js Frontend\n(Vercel)"] -->|"Sign Up / Sign In"| AuthAPI["FastAPI /auth"]
-    AuthAPI -->|"Argon2 + JWT"| DB[("PostgreSQL\n(Users + Documents)")]
+    AuthAPI -->|"Argon2 + JWT"| DB[("PostgreSQL\nUsers + Documents")]
     AuthAPI -->|"HttpOnly Cookie"| Client
 
-    Client -->|"Text / PDF / Image\n(X-API-Key + JWT)"| IngestAPI["FastAPI /ingest"]
+    Client -->|"Text / PDF / Image\n(JWT + X-API-Key)"| IngestAPI["FastAPI /ingest"]
 
-    subgraph "Ingestion Pipeline"
+    subgraph "Ingestion Pipeline (per-user)"
         IngestAPI -->|"PDF/MD/TXT"| PDFParser["PDF & Text Parser"]
         IngestAPI -->|"PNG/JPG"| VisionAPI["Gemini Vision\n(Image to Text)"]
         PDFParser --> Chunker["Sentence-Aware\nChunker"]
@@ -67,11 +67,11 @@ flowchart TD
         Embedder --> DB
     end
 
-    Client -->|"POST /query (SSE)\n(X-API-Key + JWT)"| QueryAPI["FastAPI /query"]
+    Client -->|"POST /query (SSE)\n(JWT + X-API-Key)"| QueryAPI["FastAPI /query"]
 
-    subgraph "Retrieval Pipeline"
+    subgraph "Retrieval Pipeline (scoped to current user)"
         QueryAPI -->|"1. Embed Query"| Embedder
-        Embedder -->|"2. Hybrid Search"| DB
+        Embedder -->|"2. Hybrid Search\nWHERE user_id = current"| DB
         DB -->|"3. Top 10 Chunks"| Reranker["Multithreaded\nCross-Encoder Reranker"]
         Reranker -->|"4. Top 3 Relevant Chunks"| QueryAPI
     end
@@ -86,16 +86,19 @@ flowchart TD
 
 ### Design principles
 
-1. **The database is the source of truth for vectors.** We don't use an in-memory vector store. Postgres + `pgvector` handles millions of embeddings with transactional safety.
-2. **Evaluation is a first-class citizen.** You cannot improve what you cannot measure. The eval harness runs both locally and in CI.
-3. **Fail gracefully.** LLMs are external dependencies; they will fail. The fallback chain ensures the user always gets an answer.
-4. **Security by default.** JWT auth with HttpOnly cookies, Argon2 password hashing, rate limiting, and upload size caps.
+1. **Multi-tenant by default.** Every document has a `user_id`. Every query filters by `user_id`. Alice cannot see Bob's documents, even if they have the same content.
+2. **The database is the source of truth for vectors.** Postgres + `pgvector` handles millions of embeddings with transactional safety.
+3. **Evaluation is a first-class citizen.** The eval harness runs both locally and in CI.
+4. **Fail gracefully.** LLMs fail; the fallback chain ensures the user still gets an answer. Vision models fall back to lighter models.
+5. **Security by default.** JWT auth, Argon2 hashing, rate limiting, upload size caps, and API key defense-in-depth.
 
 ## Core guarantees
 
 | Guarantee | Mechanism |
 | :--- | :--- |
-| No duplicate ingestion | `content_hash` unique constraint on the `documents` table. |
+| No cross-user data leakage | Every query joins `documents` on `user_id = current_user.id`. |
+| No duplicate ingestion per user | Composite `UNIQUE(user_id, content_hash)` constraint on `documents`. |
+| Same document for different users | Two users can upload the same file independently. Each gets their own `documents` row. |
 | The AI cites its sources | Prompt explicitly says: "Cite the context chunks you use by writing [1], [2]." |
 | The API won't crash on LLM outage | The `Generator` catches `Exception` and loops through the `self.models` array. |
 | Multi-modal support | PDFs and Images are parsed into text (via PyPDF and Gemini Vision) before embedding. |
@@ -103,15 +106,14 @@ flowchart TD
 | Type safety across the board | `mypy --strict` passes on all source files. |
 | CI won't merge regressions | `eval-gate` job fails if `recall_at_k < 0.7`. |
 
-## Security
-
-This project is hardened for public deployment:
+## Security & multi-tenancy
 
 | Layer | Mechanism |
 | :--- | :--- |
-| **Authentication** | Self-hosted JWT with Argon2 password hashing (via `pwdlib`). |
+| **Authentication** | Self-hosted JWT (HS256) with Argon2 password hashing via `pwdlib`. |
 | **Sessions** | HttpOnly cookies with 7-day expiry. JavaScript cannot read them (XSS-resistant). |
 | **Route Protection** | Next.js `middleware.ts` verifies the JWT before rendering protected routes. |
+| **Per-user isolation** | Every `Document` has a `user_id` FK. The retriever filters by `current_user.id` on every query. |
 | **API Keys** | `/ingest` and `/query` require `X-API-Key` header (defense in depth against direct API abuse). |
 | **Rate Limiting** | `slowapi` limits `/query` to 5 req/min and `/ingest` to 3 req/min per IP. |
 | **Upload Size** | Files > 10MB rejected with `413 Payload Too Large`. |
@@ -120,9 +122,10 @@ This project is hardened for public deployment:
 
 | Decision | Why | Trade-off |
 | :--- | :--- | :--- |
-| **Postgres + pgvector, not Pinecone** | Keeps everything in one database; allows transactional rollbacks and RLS. | Requires managing a Postgres instance. |
+| **Postgres + pgvector, not Pinecone** | Keeps everything in one database; allows transactional rollbacks and per-user RLS. | Requires managing a Postgres instance. |
 | **Self-hosted JWT (not Clerk/Auth0)** | Zero external dependency; users stored in your own Postgres. | You own account recovery, password reset, OAuth (if added). |
 | **Argon2, not bcrypt** | OWASP-recommended. No 72-byte limit. GPU-resistant. | Slightly slower hashing (which is the point). |
+| **Composite unique constraint `(user_id, content_hash)`** | Two users uploading the same file get independent rows. | Slightly more complex migration than a global unique index. |
 | **Hybrid Search (BM25 + Vector)** | Dense vectors miss exact keyword matches (SKUs, names, acronyms). | Adds a `tsvector` column and GIN index. |
 | **Multithreaded Cross-Encoder Reranker** | Bi-encoders are fast but imprecise. Cross-encoders are slow but accurate. We multithread ONNX to drop latency from 28s → ~200ms. | Requires CPU cores to run efficiently. |
 | **Sentence-Aware Chunking** | Splitting by arbitrary characters cuts words in half. | Slightly more complex than a character loop. |
@@ -212,7 +215,7 @@ alembic upgrade head
    npm run dev
    ```
 
-Open [http://localhost:3000](http://localhost:3000). You'll be redirected to `/sign-in` → click "Create one" → sign up.
+Open [http://localhost:3000](http://localhost:3000). You'll be redirected to `/sign-in` → click "Create one" → sign up with username, email, password.
 
 ## Environment variables
 
@@ -256,25 +259,27 @@ pytest tests/
 │   ├── generate/               # Streaming LLM + Multithreaded Reranker
 │   ├── ingest/                 # Sentence-aware chunking
 │   ├── migrations/             # Alembic migrations
-│   ├── repository.py           # Idempotent DB operations
-│   └── retrieve/               # Hybrid Retriever and Embedder
-├── web/                        # Next.js frontend (tabbed UI + auth)
+│   ├── repository.py           # Idempotent DB operations (per-user)
+│   └── retrieve/               # Hybrid Retriever (scoped by user_id)
+├── web/                        # Next.js frontend (auth + tabbed UI)
 └── tests/                      # Unit and integration tests
 ```
 
 ## Known limitations
 
-- **Shared knowledge base.** All users currently see the same documents. Per-user isolation is on the roadmap.
-- **Cold starts on Render.** Free tier spins down after 15 min. First request takes ~30s.
+- **Cold starts on Render.** The free tier spins down after 15 minutes. First request takes ~30s.
 - **Free-tier Gemini quotas.** Vision and generation have strict daily limits on the free tier.
+- **No password reset flow.** If a user forgets their password, they can't recover their account yet (no email service configured).
+- **No OAuth (Google/GitHub).** Users must sign up with email/password.
 
 ## Roadmap
 
 - [x] Real-time SSE streaming
 - [x] Multi-modal ingestion (PDF, Images)
-- [x] Self-hosted JWT auth
+- [x] Self-hosted JWT auth with Argon2
+- [x] Per-user document isolation
 - [x] Rate limiting + upload limits
-- [ ] Per-user document isolation (`user_id` FK on Document)
+- [ ] Password reset flow (requires email service)
 - [ ] OAuth (Google Sign-In)
 - [ ] RAGAS generation metrics (Faithfulness, Answer Relevance)
 - [ ] Persistent chat history in Postgres

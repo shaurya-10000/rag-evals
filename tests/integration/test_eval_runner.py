@@ -1,9 +1,12 @@
+import uuid
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from rag.auth.utils import get_password_hash
 from rag.config.settings import settings
-from rag.db_models import Base
+from rag.db_models import Base, User
 from rag.eval.runner import EvalRunner
 from rag.repository import DocumentRepository
 from rag.retrieve.embedder import Embedder
@@ -26,10 +29,20 @@ def test_eval_runner_returns_metrics(db_session):
     retriever = Retriever(db=db_session, embedder=embedder)
     runner = EvalRunner(retriever)
 
-    # Insert a known document
-    repo.ingest_document("Eval Doc", "This is the exact text we want to retrieve.")
+    uniq = uuid.uuid4().hex[:8]
+    user = User(
+        email=f"eval_{uniq}@example.com",
+        username=f"evaluser_{uniq}",
+        hashed_password=get_password_hash("testpassword123"),
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
 
-    # Updated gold set format matching the new runner
+    repo.ingest_document(
+        user.id, "Eval Doc", "This is the exact text we want to retrieve."
+    )
+
     gold_set = [
         {
             "type": "direct",

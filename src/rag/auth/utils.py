@@ -1,10 +1,14 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from jose import jwt
+from fastapi import Depends, HTTPException, Request
+from jose import JWTError, jwt
 from pwdlib import PasswordHash
+from sqlalchemy.orm import Session
 
 from rag.config.settings import settings
+from rag.db import get_db
+from rag.db_models import User
 
 password_hash = PasswordHash.recommended()
 
@@ -20,10 +24,33 @@ def get_password_hash(password: str) -> str:
 def create_access_token(user_id: uuid.UUID, email: str) -> str:
     expires = datetime.now(UTC) + timedelta(minutes=settings.JWT_EXPIRES_MINUTES)
     payload = {"sub": str(user_id), "email": email, "exp": expires}
-    return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)  # type: ignore[no-any-return]
+    token = jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+    return str(token)
 
 
-def decode_token(token: str) -> dict[str, str]:
-    return jwt.decode(  # type: ignore[no-any-return]
-        token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM]
-    )
+def get_current_user(
+    request: Request, db: Session = Depends(get_db)  # noqa: B008
+) -> User:
+    token = request.cookies.get("access_token")
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        payload = jwt.decode(
+            token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM]
+        )
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token") from None
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user

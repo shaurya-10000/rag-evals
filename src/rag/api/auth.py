@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from rag.auth.utils import create_access_token, get_password_hash, verify_password
@@ -10,48 +10,56 @@ from rag.db_models import User
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-class AuthRequest(BaseModel):
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str
+
+
+class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
 
 def _set_token_cookie(response: Response, token: str) -> None:
     response.set_cookie(
-        key="access_token",
-        value=token,
-        httponly=True,
-        secure=False,
-        samesite="lax",
+        key="access_token", value=token, httponly=True, secure=False, samesite="lax",
         max_age=settings.JWT_EXPIRES_MINUTES * 60,
     )
 
 
 @router.post("/register")
 def register(
-    payload: AuthRequest,
+    payload: RegisterRequest,
     response: Response,
     db: Session = Depends(get_db),  # noqa: B008
 ) -> dict[str, str]:
     if len(payload.password) < 8:
         raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
 
-    existing = db.query(User).filter(User.email == payload.email).first()
-    if existing:
+    if db.query(User).filter(User.email == payload.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
+        
+    if db.query(User).filter(User.username == payload.username).first():
+        raise HTTPException(status_code=400, detail="Username already taken")
 
-    user = User(email=payload.email, hashed_password=get_password_hash(payload.password))
+    user = User(
+        email=payload.email, 
+        username=payload.username, 
+        hashed_password=get_password_hash(payload.password)
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
 
     token = create_access_token(user.id, user.email)
     _set_token_cookie(response, token)
-    return {"status": "registered", "email": user.email}
+    return {"status": "registered", "email": user.email, "username": user.username}
 
 
 @router.post("/login")
 def login(
-    payload: AuthRequest,
+    payload: LoginRequest,
     response: Response,
     db: Session = Depends(get_db),  # noqa: B008
 ) -> dict[str, str]:
@@ -61,7 +69,7 @@ def login(
 
     token = create_access_token(user.id, user.email)
     _set_token_cookie(response, token)
-    return {"status": "logged_in", "email": user.email}
+    return {"status": "logged_in", "email": user.email, "username": user.username}
 
 
 @router.post("/logout")

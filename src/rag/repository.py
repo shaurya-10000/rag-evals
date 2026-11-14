@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy.orm import Session
 
 from rag.db_models import Chunk, Document
@@ -11,20 +13,34 @@ class DocumentRepository:
         self.embedder = embedder
         self.chunker = DocumentChunker(chunk_size=500, overlap=50)
 
-    def ingest_document(self, title: str, text: str, source_url: str | None = None) -> Document:
+    def ingest_document(
+        self,
+        user_id: uuid.UUID,
+        title: str,
+        text: str,
+        source_url: str | None = None,
+    ) -> Document:
         pipeline = IngestionPipeline(chunker=self.chunker)
         data = pipeline.process_document(title, text, source_url)
         content_hash = data["content_hash"]
 
-        existing = self.db.query(Document).filter(Document.content_hash == content_hash).first()
+        existing = (
+            self.db.query(Document)
+            .filter(Document.content_hash == content_hash, Document.user_id == user_id)
+            .first()
+        )
         if existing:
             return existing
 
-        doc = Document(title=title, source_url=source_url, content_hash=content_hash)
+        doc = Document(
+            user_id=user_id,
+            title=title,
+            source_url=source_url,
+            content_hash=content_hash,
+        )
         self.db.add(doc)
         self.db.flush()
 
-        # Embed real chunks
         chunks_data = data["chunks"]
         chunks_text = [c["content"] for c in chunks_data]
         embeddings = self.embedder.embed_texts(chunks_text)
@@ -34,7 +50,7 @@ class DocumentRepository:
                 document_id=doc.id,
                 content=chunk_info["content"],
                 embedding=embedding,
-                metadata_col=chunk_info["metadata"]
+                metadata_col=chunk_info["metadata"],
             )
             self.db.add(chunk)
 

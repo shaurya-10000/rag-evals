@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Bot, Loader2, Mail, Lock } from 'lucide-react';
+import { Bot, Loader2, Mail, Lock, User } from 'lucide-react';
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -18,12 +19,10 @@ export default function SignUpPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, username, password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Sign up failed');
-      
-      // Hard redirect — forces a full page reload with the new cookie
       window.location.href = '/';
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed');
@@ -42,26 +41,30 @@ export default function SignUpPage() {
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
+            <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Username</label>
+            <div className="relative">
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+              <input type="text" required minLength={3} value={username} onChange={(e) => setUsername(e.target.value)}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl py-3 pl-11 pr-4 text-sm text-neutral-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                placeholder="johndoe" />
+            </div>
+          </div>
+          <div>
             <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Email</label>
             <div className="relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-              <input
-                type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-xl py-3 pl-11 pr-4 text-sm text-neutral-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                placeholder="you@example.com"
-              />
+                placeholder="you@example.com" />
             </div>
           </div>
           <div>
             <label className="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Password</label>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-              <input
-                type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-xl py-3 pl-11 pr-4 text-sm text-neutral-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                placeholder="Min 8 characters"
-                minLength={8}
-              />
+                placeholder="Min 8 characters" minLength={8} />
             </div>
           </div>
           {error && (<div className="p-3 rounded-lg text-xs text-center bg-red-500/10 text-red-400 border border-red-500/20">{error}</div>)}
