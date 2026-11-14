@@ -21,7 +21,8 @@ class Reranker:
         if self._model is None:
             from fastembed.rerank.cross_encoder import TextCrossEncoder
 
-            default_threads = str(os.cpu_count() or 1)
+            # Use a strict fixed number of threads to prevent Windows thread contention
+            default_threads = str(min(4, os.cpu_count() or 1))
             threads = int(os.getenv("RERANK_THREADS", default_threads))
 
             self._model = TextCrossEncoder(
@@ -38,15 +39,11 @@ class Reranker:
         model = self._get_model()
         scores = list(model.rerank(query, [chunk.content for chunk in chunks]))
         
-        # Pair chunks with scores and sort descending
         ranked = sorted(zip(chunks, scores, strict=True), key=lambda pair: pair[1], reverse=True)
         
-        # Filter out irrelevant chunks (score threshold)
-        # Cross-encoder scores are usually logits. A negative score means low relevance.
         THRESHOLD = float(os.getenv("RERANK_SCORE_THRESHOLD", "0.0"))
         filtered = [chunk for chunk, score in ranked if score >= THRESHOLD]
         
-        # If filtering removed everything, just return the top one
         if not filtered and ranked:
             return [ranked[0][0]]
             

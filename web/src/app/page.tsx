@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, Bot, User, Database, UploadCloud, FileText, Type } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 type Chunk = { id: string; content: string; metadata: Record<string, unknown> };
-type Message = { role: 'user' | 'assistant'; content: string; chunks?: Chunk[] };
+type Message = { role: 'user' | 'assistant'; content: string; chunks?: Chunk[]; isStreaming?: boolean };
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Ingest State
   const [ingestMode, setIngestMode] = useState<'text' | 'file'>('text');
@@ -18,9 +19,16 @@ export default function Home() {
   const [docText, setDocText] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const [isIngesting, setIsIngesting] = useState(false);
   const [ingestStatus, setIngestStatus] = useState('');
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -66,7 +74,6 @@ export default function Home() {
       setDocText('');
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      
       setTimeout(() => setIngestStatus(''), 3000);
     } catch (err) {
       setIngestStatus(`Error: ${err instanceof Error ? err.message : 'Failed'}`);
@@ -80,7 +87,14 @@ export default function Home() {
     if (!input.trim() || isLoading) return;
 
     const userMsg: Message = { role: 'user', content: input };
-    setMessages((prev) => [...prev, userMsg]);
+    const currentInput = input;
+    
+    setMessages((prev) => [
+      ...prev, 
+      userMsg, 
+      { role: 'assistant', content: '', isStreaming: true }
+    ]);
+    
     setInput('');
     setIsLoading(true);
 
@@ -88,18 +102,63 @@ export default function Home() {
       const res = await fetch('/api/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: userMsg.content, top_k: 3 }),
+        body: JSON.stringify({ query: currentInput, top_k: 3 }),
       });
-      const data = await res.json();
 
-      const botMsg: Message = {
-        role: 'assistant',
-        content: data.answer || data.error || 'No response',
-        chunks: data.results,
-      };
-      setMessages((prev) => [...prev, botMsg]);
-    } catch {
-      setMessages((prev) => [...prev, { role: 'assistant', content: 'Error connecting to backend.' }]);
+      if (!res.body) throw new Error('No response body');
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let buffer = '';
+
+      while (!done) {
+        const { value, done: doneReading } = await reader.read();
+        done = doneReading;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.replace('data: ', '').trim();
+              if (!dataStr) continue;
+              
+              try {
+                const data = JSON.parse(dataStr);
+                
+                setMessages((prev) => {
+                  const newMessages = [...prev];
+                  const lastMsg = { ...newMessages[newMessages.length - 1] };
+                  
+                  if (data.type === 'sources') {
+                    lastMsg.chunks = data.sources;
+                  } else if (data.type === 'token') {
+                    lastMsg.content = (lastMsg.content || '') + data.text;
+                  } else if (data.type === 'done') {
+                    lastMsg.isStreaming = false;
+                  }
+                  
+                  newMessages[newMessages.length - 1] = lastMsg;
+                  return newMessages;
+                });
+              } catch (err) {
+                console.error('Error parsing SSE:', err);
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        const lastMsg = { ...newMessages[newMessages.length - 1] };
+        lastMsg.content = 'Error connecting to backend.';
+        lastMsg.isStreaming = false;
+        newMessages[newMessages.length - 1] = lastMsg;
+        return newMessages;
+      });
     } finally {
       setIsLoading(false);
     }
@@ -116,7 +175,6 @@ export default function Home() {
         </div>
         
         <div className="p-4 flex flex-col gap-4 flex-1">
-          {/* TABS */}
           <div className="flex p-1 bg-neutral-950 rounded-lg border border-neutral-800">
             <button
               onClick={() => setIngestMode('text')}
@@ -230,15 +288,29 @@ export default function Home() {
               ? 'max-w-[80%] rounded-2xl p-4 bg-emerald-600 text-white' 
               : 'max-w-[80%] rounded-2xl p-4 bg-neutral-900 border border-neutral-800';
 
+            // Show thinking dots if it's an assistant message with no content yet
+            const isThinking = !isUser && msg.content === '' && msg.isStreaming;
+
             return (
               <div key={i} className={rowClass}>
                 {!isUser && <Bot className="w-6 h-6 text-emerald-400 shrink-0 mt-1" />}
                 
                 <div className={bubbleClass}>
                   {!isUser ? (
-                    <div className="prose prose-invert prose-sm"><ReactMarkdown>
-                      {msg.content}
-                    </ReactMarkdown></div>
+                    <div className="prose prose-invert prose-sm">
+                      {isThinking ? (
+                        <div className="flex items-center gap-1 h-6">
+                          <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
+                      ) : (
+                        <>
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          {msg.isStreaming && <span className="inline-block w-2 h-4 ml-1 bg-emerald-400 animate-pulse" />}
+                        </>
+                      )}
+                    </div>
                   ) : (
                     <p>{msg.content}</p>
                   )}
@@ -260,15 +332,7 @@ export default function Home() {
               </div>
             );
           })}
-          
-          {isLoading && (
-            <div className="flex gap-3">
-              <Bot className="w-6 h-6 text-emerald-400 shrink-0 mt-1" />
-              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4">
-                <Loader2 className="w-5 h-5 animate-spin text-neutral-400" />
-              </div>
-            </div>
-          )}
+          <div ref={messagesEndRef} />
         </div>
 
         <footer className="p-4 border-t border-neutral-800 max-w-4xl mx-auto w-full">

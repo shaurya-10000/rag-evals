@@ -1,20 +1,23 @@
 import base64
+import json
 import logging
 import os
 import time
 from collections.abc import AsyncGenerator
+from collections.abc import Generator as TypingGenerator
 from contextlib import asynccontextmanager
 from functools import lru_cache
 from io import BytesIO
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from google import genai
-from google.genai import errors, types
+from google.genai import types
 from pypdf import PdfReader
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
-from rag.api.schemas import ChunkResult, IngestResponse, QueryRequest, QueryResponse
+from rag.api.schemas import IngestResponse, QueryRequest
 from rag.config.settings import settings
 from rag.db import get_db
 from rag.generate.generator import Generator
@@ -104,31 +107,25 @@ async def ingest(
                     page.extract_text() for page in reader.pages if page.extract_text()
                 )
             except Exception as e:
-                logger.error(f"Failed to parse PDF: {e}")
                 raise HTTPException(status_code=400, detail="Invalid PDF file") from e
 
         elif filename.endswith((".png", ".jpg", ".jpeg", ".webp")):
-            logger.info("Processing image via Gemini Vision...")
             client = genai.Client(
                 api_key=settings.GEMINI_API_KEY,
                 http_options=types.HttpOptions(timeout=VISION_TIMEOUT_MS),
             )
-
             if filename.endswith((".jpg", ".jpeg")):
                 mime_type = "image/jpeg"
             else:
                 mime_type = f"image/{filename.split('.')[-1]}"
 
             b64_img = base64.b64encode(contents).decode("utf-8")
-
             prompt = (
                 "Describe this image in extreme detail. "
                 "Include any text, charts, code, or key visual information. "
                 "Output only the description."
             )
-
             vision_models = ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
-            text = ""
 
             for model in vision_models:
                 try:
@@ -145,24 +142,11 @@ async def ingest(
                     )
                     if response.text:
                         text = f"Image Description ({filename}):\n{response.text}"
-                        logger.info(f"Vision processed successfully with {model}")
                         break
-                except errors.APIError as e:
-                    if e.code == 429:
-                        logger.warning(f"Rate limited on {model}, trying fallback...")
-                        continue
-                    logger.error(f"Vision API error on {model}: {e}")
+                except Exception:
                     continue
-                except Exception as e:
-                    logger.error(f"Vision processing error on {model}: {e}")
-                    continue
-
             if not text:
-                raise HTTPException(
-                    status_code=500,
-                    detail="All vision models failed or are rate-limited.",
-                )
-
+                raise HTTPException(status_code=500, detail="All vision models failed.")
         else:
             try:
                 text = contents.decode("utf-8")
@@ -181,15 +165,14 @@ async def ingest(
     return IngestResponse(document_id=doc.id, status="ingested")
 
 
-@app.post("/query", response_model=QueryResponse)
+@app.post("/query")
 def query(
     request: QueryRequest,
-    response: Response,
     db: Session = Depends(get_db),
     embedder: Embedder = Depends(get_embedder),
     generator: Generator = Depends(get_generator),
     reranker: Reranker = Depends(get_reranker),
-) -> QueryResponse:
+) -> StreamingResponse:
     t_start = time.perf_counter()
 
     retriever = Retriever(db=db, embedder=embedder)
@@ -201,23 +184,45 @@ def query(
     )
     t_rerank = time.perf_counter()
 
-    answer = generator.generate_answer(query=request.query, chunks=final_chunks)
-    t_generate = time.perf_counter()
+    def event_generator() -> TypingGenerator[str, None, None]:
+        # 1. Send the Sources (metadata) first
+        sources = [
+            {"id": str(c.id), "content": c.content, "metadata": c.metadata_col}
+            for c in final_chunks
+        ]
+        yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
-    def ms(a: float, b: float) -> int:
-        return round((b - a) * 1000)
+        # 2. Stream the answer token by token
+        try:
+            for text_chunk in generator.stream_answer(
+                query=request.query, chunks=final_chunks
+            ):
+                yield f"data: {json.dumps({'type': 'token', 'text': text_chunk})}\n\n"
+        except Exception as e:
+            logger.error(f"Streaming error: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            return
 
-    timings = (
-        f"retrieve={ms(t_start, t_retrieve)}ms "
-        f"rerank={ms(t_retrieve, t_rerank)}ms "
-        f"generate={ms(t_rerank, t_generate)}ms "
-        f"total={ms(t_start, t_generate)}ms"
+        # 3. Send completion signal
+        t_generate = time.perf_counter()
+
+        def ms(a: float, b: float) -> int:
+            return round((b - a) * 1000)
+
+        timings = (
+            f"retrieve={ms(t_start, t_retrieve)}ms "
+            f"rerank={ms(t_retrieve, t_rerank)}ms "
+            f"generate={ms(t_rerank, t_generate)}ms"
+        )
+        logger.info("query timings: %s (candidates=%d)", timings, len(candidates))
+        yield f"data: {json.dumps({'type': 'done', 'timings': timings})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
-    logger.info("query timings: %s (candidates=%d)", timings, len(candidates))
-    response.headers["X-Stage-Timings"] = timings
-
-    results = [
-        ChunkResult(id=c.id, content=c.content, metadata=c.metadata_col)
-        for c in final_chunks
-    ]
-    return QueryResponse(answer=answer, results=results)

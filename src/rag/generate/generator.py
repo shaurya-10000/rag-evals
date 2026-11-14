@@ -1,5 +1,6 @@
 import logging
 import time
+from collections.abc import Generator as TypingGenerator
 
 from google import genai
 from google.genai import types
@@ -13,35 +14,22 @@ logger = logging.getLogger(__name__)
 class Generator:
     def __init__(self, mock: bool = False):
         self.mock = mock
-        # Hierarchical fallback list (Best -> Fast -> Fallback)
-        self.models = [
-            "gemini-3.8-flash",
-            "gemini-3.5-flash-lite",
-            "gemini-3.6-flash"
-        ]
+        self.models = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash"]
         if not mock:
             self.client = genai.Client(
                 api_key=settings.GEMINI_API_KEY,
-                http_options=types.HttpOptions(timeout=15000)
+                http_options=types.HttpOptions(timeout=15000),
             )
 
-    def generate_answer(self, query: str, chunks: list[Chunk]) -> str:
-        '''Generate an answer using the retrieved chunks as context.'''
-        if self.mock:
-            return f"Mock answer based on {len(chunks)} chunks."
-
-        if not chunks:
-            return "I could not find any relevant info to answer your question."
-
-        # 1. Build the context string with citations
+    def _build_prompt(self, query: str, chunks: list[Chunk]) -> str:
         context = ""
         for i, chunk in enumerate(chunks):
             context += f"[{i+1}] {chunk.content}\n\n"
 
-        # 2. Create the prompt
-        prompt = f"""You are a helpful assistant.
+        return f"""You are a helpful assistant.
 Answer the user's question using ONLY the provided context.
-If the answer is not in the context, say 'I don't know'.
+If the exact answer is not in the context, provide a helpful summary 
+based on the context you do have, rather than saying 'I don't know'.
 Cite the context chunks you use by writing [1], [2], etc.
 
 Context:
@@ -50,26 +38,62 @@ Context:
 Question: {query}
 Answer:"""
 
-        # 3. Try models in order (Fallback pattern)
+    def generate_answer(self, query: str, chunks: list[Chunk]) -> str:
+        if self.mock:
+            return f"Mock answer based on {len(chunks)} chunks."
+
+        if not chunks:
+            return "I could not find any relevant info to answer your question."
+
+        prompt = self._build_prompt(query, chunks)
+
         for model in self.models:
-            started = time.perf_counter()
             try:
                 response = self.client.models.generate_content(
                     model=model,
                     contents=prompt,
                 )
-                elapsed = time.perf_counter() - started
                 if response.text:
-                    logger.info("generation ok model=%s time=%.1fs", model, elapsed)
                     return response.text
-                logger.warning("generation empty model=%s time=%.1fs", model, elapsed)
             except Exception as e:
-                # If it fails (503, 429, 404, timeout), log it and try the next model
+                logger.warning(f"generation failed model={model} error={e}")
+                continue
+
+        return "Error: All LLM models are currently unavailable. Please try again later."
+
+    def stream_answer(
+        self, query: str, chunks: list[Chunk]
+    ) -> TypingGenerator[str, None, None]:
+        if self.mock:
+            yield "Mock "
+            yield "streaming "
+            yield f"answer based on {len(chunks)} chunks."
+            return
+
+        if not chunks:
+            yield "I could not find any relevant info to answer your question."
+            return
+
+        prompt = self._build_prompt(query, chunks)
+
+        for model in self.models:
+            started = time.perf_counter()
+            try:
+                response = self.client.models.generate_content_stream(
+                    model=model,
+                    contents=prompt,
+                )
+                for chunk in response:
+                    if chunk.text:
+                        yield chunk.text
+                elapsed = time.perf_counter() - started
+                logger.info(f"stream ok model={model} time={elapsed:.1f}s")
+                return
+            except Exception as e:
                 elapsed = time.perf_counter() - started
                 logger.warning(
-                    "generation failed model=%s time=%.1fs error=%s", model, elapsed, e
+                    f"stream failed model={model} time={elapsed:.1f}s error={e}"
                 )
                 continue
 
-        # If all models fail
-        return "Error: All LLM models are currently unavailable. Please try again later."
+        yield "Error: All LLM models are currently unavailable. Please try again later."
