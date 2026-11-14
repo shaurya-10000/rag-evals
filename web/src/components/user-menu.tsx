@@ -8,7 +8,6 @@ export function UserMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
-  const isClient = typeof window !== 'undefined';
 
   useEffect(() => {
     if (!open) return;
@@ -31,10 +30,8 @@ export function UserMenu() {
     window.location.href = '/sign-in';
   };
 
-  if (!isClient) return <div className="w-9 h-9" />;
-
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative" suppressHydrationWarning>
       <button
         onClick={() => setOpen(v => !v)}
         aria-label="User menu"
@@ -99,5 +96,3 @@ export function UserMenu() {
     </div>
   );
 }
-
-
