@@ -9,6 +9,10 @@ class IngestResponse(BaseModel):
     status: str
 
 
+class TitleRequest(BaseModel):
+    prompt: str
+
+
 class QueryRequest(BaseModel):
     query: str = Field(..., min_length=2)
     top_k: int = Field(default=5, ge=1, le=20)

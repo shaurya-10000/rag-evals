@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from rag.api.auth import router as auth_router
-from rag.api.schemas import IngestResponse, QueryRequest
+from rag.api.schemas import IngestResponse, QueryRequest, TitleRequest
 from rag.auth.utils import get_current_user
 from rag.config.settings import settings
 from rag.db import get_db
@@ -185,6 +185,31 @@ async def ingest(
     doc = repo.ingest_document(user_id=current_user.id, title=title, text=text, source_url=source)
     logger.info(f"[{request_id}] Ingest done. doc_id={doc.id}")
     return IngestResponse(document_id=doc.id, status="ingested")
+
+
+@app.post("/generate-title")
+def generate_title(
+    payload: TitleRequest,
+    _: str = Depends(verify_api_key),  # noqa: B008
+) -> dict[str, str]:
+    try:
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        prompt = (
+            "Summarize this prompt in 3 to 5 words to be used as a chat title. "
+            "Do not use punctuation. Output ONLY the title.\n\n"
+            f"Prompt: {payload.prompt}"
+        )
+
+        response = client.models.generate_content(
+            model="gemini-3.5-flash-lite",
+            contents=prompt,
+        )
+        title = (response.text or "").strip().strip('"').strip("'")
+        return {"title": title or "New Chat"}
+    except Exception as e:
+        logger.error(f"Title generation failed: {e}")
+        # Fallback to first 30 chars if generation fails
+        return {"title": payload.prompt[:30] + "..."}
 
 
 @app.post("/query")

@@ -181,6 +181,22 @@ export default function Home() {
     setMessages(newMessages);
     setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: newMessages } : c));
     
+    // Auto-generate title if this is the first message in the chat
+    if (messages.length === 0) {
+      fetch('/api/generate-title', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: currentInput }),
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.title) {
+          setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: data.title } : c));
+        }
+      })
+      .catch(() => { /* Silently fail, keep the default title */ });
+    }
+    
     setInput(''); setIsLoading(true);
     try {
       const res = await fetch('/api/query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: currentInput, top_k: 3 }) });
@@ -557,6 +573,9 @@ export default function Home() {
     </div>
   );
 }
+
+
+
 
 
 
