@@ -26,11 +26,18 @@ class Generator:
         for i, chunk in enumerate(chunks):
             context += f"[{i + 1}] {chunk.content}\n\n"
 
-        return f"""You are a helpful assistant.
+        return f"""You are a highly capable AI assistant.
 Answer the user's question using ONLY the provided context.
-If the exact answer is not in the context, provide a helpful summary 
-based on the context you do have, rather than saying 'I don't know'.
+If the exact answer is not in the context, provide a helpful summary based on the context you do have, rather than saying 'I don't know'.
 Cite the context chunks you use by writing [1], [2], etc.
+
+IMPORTANT FORMATTING INSTRUCTIONS:
+- Format your response cleanly using Markdown.
+- Use **bold** for emphasis.
+- Use headings (##) and subheadings (###) if the answer is long or complex.
+- If comparing data or presenting lists, use Markdown tables or bullet points.
+- Use relevant emojis throughout your response to make it engaging and readable.
+- Do not wrap the entire response in a markdown block.
 
 Context:
 {context}
@@ -93,3 +100,4 @@ Answer:"""
                 continue
 
         yield "Error: All LLM models are currently unavailable. Please try again later."
+
