@@ -366,12 +366,10 @@ export default function Home() {
               <Layers className="w-4 h-4 text-white" />
             </div>
             <div className="flex items-center gap-2">
-              <h1 className="text-sm font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-neutral-900 to-neutral-600 dark:from-white dark:to-neutral-400 hidden sm:block">
+              <h1 className="text-base font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-neutral-900 to-neutral-600 dark:from-white dark:to-neutral-300 hidden sm:block">
                 RAG Evals
               </h1>
-              <span className="hidden sm:inline-block px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-500/10 text-[10px] font-mono font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
-                v0.1.0
-              </span>
+              
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -581,6 +579,7 @@ export default function Home() {
     </div>
   );
 }
+
 
 
 
