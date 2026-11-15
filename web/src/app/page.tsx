@@ -193,8 +193,8 @@ export default function Home() {
       setDocTitle(''); setDocText(''); setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       setTimeout(() => setIngestStatus(''), 3000);
-    } catch {
-      setIngestStatus('Error: Failed to ingest');
+    } catch (err) {
+      setIngestStatus('Error: ' + (err instanceof Error ? err.message : 'Failed to ingest'));
     } finally { setIsIngesting(false); }
   };
 
