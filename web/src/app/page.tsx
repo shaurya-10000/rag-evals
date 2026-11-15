@@ -88,8 +88,16 @@ export default function Home() {
 
   const deleteChat = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    // Remove the chat from the list
     setChats(prev => prev.filter(c => c.id !== id));
-    if (activeChatId === id) startNewChat();
+    
+    // If the deleted chat was the currently active one, clear the screen
+    if (activeChatId === id) {
+      setActiveChatId(null);
+      setMessages([]);
+      setInput('');
+      setActiveTab('chat');
+    }
     setChatMenuOpenId(null);
   };
 
@@ -573,6 +581,7 @@ export default function Home() {
     </div>
   );
 }
+
 
 
 
