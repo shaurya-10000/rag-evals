@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from rag.db_models import Chunk, Document
-from rag.ingest.pipeline import DocumentChunker, IngestionPipeline
+from rag.ingest.pipeline import DEFAULT_CHUNK_SIZE, DocumentChunker, IngestionPipeline
 from rag.retrieve.embedder import Embedder
 
 
@@ -11,7 +11,7 @@ class DocumentRepository:
     def __init__(self, db: Session, embedder: Embedder):
         self.db = db
         self.embedder = embedder
-        self.chunker = DocumentChunker(chunk_size=500, overlap=50)
+        self.chunker = DocumentChunker(chunk_size=DEFAULT_CHUNK_SIZE)
 
     def ingest_document(
         self,

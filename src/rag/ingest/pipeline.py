@@ -2,13 +2,14 @@ import hashlib
 import re
 from typing import Any
 
+DEFAULT_CHUNK_SIZE = 500
+
 
 class DocumentChunker:
     """Splits text into chunks, preserving words and sentence boundaries."""
 
-    def __init__(self, chunk_size: int = 1000, overlap: int = 100):
+    def __init__(self, chunk_size: int = DEFAULT_CHUNK_SIZE):
         self.chunk_size = chunk_size
-        self.overlap = overlap
 
     def split(self, text: str) -> list[str]:
         # Normalize whitespace

@@ -1,4 +1,5 @@
 import json
+import uuid
 from typing import Any
 
 from rag.eval.metrics import RetrievalMetrics
@@ -13,7 +14,9 @@ class EvalRunner:
         with open(filepath, encoding="utf-8") as f:
             return json.load(f)  # type: ignore[no-any-return]
 
-    def run(self, gold_set: list[dict[str, Any]], k: int = 3) -> dict[str, Any]:
+    def run(
+        self, gold_set: list[dict[str, Any]], k: int = 3, user_id: uuid.UUID | None = None
+    ) -> dict[str, Any]:
         total_recall = 0.0
         total_mrr = 0.0
         num_questions = 0
@@ -28,7 +31,7 @@ class EvalRunner:
             num_questions += 1
             relevant_texts = {expected_chunk}
 
-            retrieved_chunks = self.retriever.search(query=question, user_id=None, top_k=k)
+            retrieved_chunks = self.retriever.search(query=question, user_id=user_id, top_k=k)
             retrieved_texts = [c.content for c in retrieved_chunks]
 
             total_recall += RetrievalMetrics.recall_at_k(retrieved_texts, relevant_texts, k)

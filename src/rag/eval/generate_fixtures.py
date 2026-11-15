@@ -26,7 +26,6 @@ OUTPUT = Path("eval/fixtures/embeddings.json")
 
 # Must match DocumentRepository's chunker so document keys line up at eval time.
 CHUNK_SIZE = 500
-OVERLAP = 50
 
 BATCH_SIZE = 20
 PRECISION = 6
@@ -85,7 +84,7 @@ def main() -> None:
         i for i in gold if i.get("expected_answer_chunk") and i["expected_answer_chunk"] != "NONE"
     ]
 
-    chunker = DocumentChunker(chunk_size=CHUNK_SIZE, overlap=OVERLAP)
+    chunker = DocumentChunker(chunk_size=CHUNK_SIZE)
     doc_texts = sorted({c for i in items for c in chunker.split(i["expected_answer_chunk"])})
     queries = sorted({i["question"] for i in items})
     print(f"{len(items)} scored questions, {len(doc_texts)} unique chunks, {len(queries)} queries")

@@ -26,7 +26,7 @@ def _set_token_cookie(response: Response, token: str) -> None:
         key="access_token",
         value=token,
         httponly=True,
-        secure=False,
+        secure=settings.is_production,
         samesite="lax",
         max_age=settings.JWT_EXPIRES_MINUTES * 60,
     )

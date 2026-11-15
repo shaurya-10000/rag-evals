@@ -49,7 +49,7 @@ def main() -> None:
         if expected_chunk and expected_chunk != "NONE":
             repo.ingest_document(user_id=eval_user.id, title="Eval Doc", text=expected_chunk)
 
-    results = runner.run(gold_set, k=3)
+    results = runner.run(gold_set, k=3, user_id=eval_user.id)
     print(f"Results: {json.dumps(results, indent=2)}")
 
     RECALL_THRESHOLD = 0.7

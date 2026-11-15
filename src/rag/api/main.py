@@ -1,4 +1,3 @@
-import base64
 import json
 import logging
 import os
@@ -145,7 +144,6 @@ async def ingest(
                 if filename.endswith((".jpg", ".jpeg"))
                 else f"image/{filename.split('.')[-1]}"
             )
-            b64_img = base64.b64encode(contents).decode("utf-8")
             prompt = "Describe this image in extreme detail. Output only the description."
             for model in ["gemini-3.8-flash", "gemini-3.5-flash-lite"]:
                 try:
@@ -154,7 +152,7 @@ async def ingest(
                         contents=types.Content(
                             parts=[
                                 types.Part.from_bytes(
-                                    data=base64.b64decode(b64_img),
+                                    data=contents,
                                     mime_type=mime_type,
                                 ),
                                 types.Part.from_text(text=prompt),
