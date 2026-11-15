@@ -17,6 +17,16 @@ class Settings(BaseSettings):
     JWT_EXPIRES_MINUTES: int = 60 * 24 * 7  # 7 days
     # Set ENVIRONMENT=production on Render. Dev defaults are rejected there.
     ENVIRONMENT: str = "development"
+    # Public URLs, used to build links in emails and OAuth redirects.
+    FRONTEND_URL: str = "http://localhost:3000"
+    BACKEND_PUBLIC_URL: str = "http://127.0.0.1:8000"
+    # Transactional email through Brevo's HTTP API. Empty key = emails are logged, not sent.
+    BREVO_API_KEY: str = ""
+    EMAIL_FROM_ADDRESS: str = ""
+    EMAIL_FROM_NAME: str = "RAG Evals"
+    # Google OAuth. Empty values disable "Continue with Google".
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

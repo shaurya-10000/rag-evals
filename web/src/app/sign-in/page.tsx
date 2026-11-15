@@ -1,20 +1,41 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Bot, Loader2, Mail, Lock } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Loader2, Mail, Lock } from 'lucide-react';
+import AuthShell, {
+  errorClass,
+  inputClass,
+  labelClass,
+  linkClass,
+  noticeClass,
+  primaryButtonClass,
+} from '../../components/AuthShell';
+import GoogleButton, { OrDivider } from '../../components/GoogleButton';
 
-export default function SignInPage() {
+const URL_ERRORS: Record<string, string> = {
+  google_failed: 'Google sign-in failed. Please try again.',
+  google_unverified: 'Your Google account email is not verified.',
+  google_unavailable: 'Google sign-in is not available right now.',
+};
+
+function SignInForm() {
+  const router = useRouter();
+  const params = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => URL_ERRORS[params.get('error') ?? ''] ?? '');
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const notice = params.get('reset') ? 'Password updated. Sign in with your new password.' : '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setNeedsVerification(false);
+    setResendState('idle');
     setIsLoading(true);
     try {
       const res = await fetch('/api/auth/login', {
@@ -23,8 +44,15 @@ export default function SignInPage() {
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Login failed');
-      
+      if (!res.ok) {
+        if (data.detail === 'email_not_verified') {
+          setNeedsVerification(true);
+          setError('Please verify your email before signing in. Check your inbox for the link.');
+          setIsLoading(false);
+          return;
+        }
+        throw new Error(typeof data.detail === 'string' ? data.detail : 'Login failed');
+      }
       router.push('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -32,47 +60,68 @@ export default function SignInPage() {
     }
   };
 
+  const resend = async () => {
+    setResendState('sending');
+    await fetch('/api/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    }).catch(() => null);
+    setResendState('sent');
+  };
+
   return (
-    <div className="flex items-center justify-center h-screen bg-neutral-50 dark:bg-neutral-950">
-      <div className="w-full max-w-md p-8 bg-white dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-800 rounded-2xl backdrop-blur-md">
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center border border-emerald-500/20">
-            <Bot className="w-6 h-6 text-emerald-400" />
+    <AuthShell title="Welcome back">
+      <GoogleButton />
+      <OrDivider />
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className={labelClass}>Email</label>
+          <div className="relative">
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+              className={inputClass} placeholder="you@example.com" />
           </div>
-          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Welcome back</h1>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-2">Email</label>
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-neutral-50 dark:bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl py-3 pl-11 pr-4 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                placeholder="you@example.com" />
-            </div>
+        <div>
+          <div className="flex items-center justify-between">
+            <label className={labelClass}>Password</label>
+            <Link href="/forgot-password" className={`text-xs mb-2 ${linkClass}`}>Forgot password?</Link>
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-2">Password</label>
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-neutral-50 dark:bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl py-3 pl-11 pr-4 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                placeholder="••••••••" />
-            </div>
+          <div className="relative">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+              className={inputClass} placeholder="••••••••" />
           </div>
-          {error && (<div className="p-3 rounded-lg text-xs text-center bg-red-500/10 text-red-400 border border-red-500/20">{error}</div>)}
-          <button type="submit" disabled={isLoading} className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/20">
-            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
+        </div>
+        {notice && <div className={noticeClass}>{notice}</div>}
+        {error && <div className={errorClass}>{error}</div>}
+        {needsVerification && (
+          <button type="button" onClick={resend} disabled={resendState !== 'idle'}
+            className="w-full text-xs text-emerald-400 hover:text-emerald-300 disabled:opacity-60">
+            {resendState === 'sent'
+              ? 'If that account needs verification, a new email is on its way.'
+              : resendState === 'sending'
+                ? 'Sending...'
+                : 'Resend verification email'}
           </button>
-        </form>
-        <p className="text-center text-xs text-neutral-500 mt-6">
-          Don&apos;t have an account?{' '}
-          <Link href="/sign-up" className="text-emerald-400 hover:text-emerald-300">Create one</Link>
-        </p>
-      </div>
-    </div>
+        )}
+        <button type="submit" disabled={isLoading} className={primaryButtonClass}>
+          {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
+        </button>
+      </form>
+      <p className="text-center text-xs text-neutral-500 mt-6">
+        Don&apos;t have an account?{' '}
+        <Link href="/sign-up" className={linkClass}>Create one</Link>
+      </p>
+    </AuthShell>
   );
 }
 
-
-
+export default function SignInPage() {
+  return (
+    <Suspense>
+      <SignInForm />
+    </Suspense>
+  );
+}

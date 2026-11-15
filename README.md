@@ -118,6 +118,9 @@ flowchart TD
 | :--- | :--- |
 | **Authentication** | Self-hosted JWT (HS256) with Argon2 password hashing via `pwdlib`. |
 | **Sessions** | HttpOnly cookies with 7-day expiry. JavaScript cannot read them (XSS-resistant). |
+| **Email verification** | Email/password accounts must verify their address before signing in. Single-use links, 24h expiry, only a SHA-256 hash stored. |
+| **Password reset** | Single-use link, 30 min expiry, same response whether or not the account exists. A reset signs out all existing sessions. |
+| **Google sign-in** | Server-side OAuth code flow with a state cookie. Accounts link by email only when Google reports it as verified. |
 | **Route Protection** | Next.js `middleware.ts` verifies the JWT before rendering protected routes. |
 | **Per-user isolation** | Every `Document` has a `user_id` FK. The retriever filters by `current_user.id` on every query. |
 | **API Keys** | `/ingest` and `/query` require `X-API-Key` header (defense in depth against direct API abuse). |
@@ -129,7 +132,7 @@ flowchart TD
 | Decision | Why | Trade-off |
 | :--- | :--- | :--- |
 | **Postgres + pgvector** | Keeps everything in one database; allows transactional rollbacks and per-user RLS. | Requires managing a Postgres instance. |
-| **Self-hosted JWT** | Zero external dependency; users stored in your own Postgres. | You own account recovery and OAuth. |
+| **Self-hosted JWT** | Zero external dependency; users stored in your own Postgres. | You own account recovery (email via Brevo) and OAuth setup. |
 | **Argon2, not bcrypt** | OWASP-recommended. No 72-byte limit. GPU-resistant. | Slightly slower hashing. |
 | **Hybrid Search (BM25 + Vector)** | Dense vectors miss exact keyword matches (SKUs, names, acronyms). | Adds a `tsvector` column and GIN index. |
 | **Multithreaded Reranker** | Bi-encoders are fast but imprecise. Cross-encoders are accurate. We multithread ONNX to drop latency from 28s → ~200ms. | Requires CPU cores to run efficiently. |
@@ -258,6 +261,28 @@ Open [http://localhost:3000](http://localhost:3000). You'll be redirected to `/s
 | `NEXT_PUBLIC_BACKEND_URL` | Frontend | ✅ | The URL of the deployed backend API |
 | `RAG_API_KEY` | Frontend | ✅ | Must match backend `RAG_API_KEY` |
 | `JWT_SECRET` | Frontend | ✅ | Must match backend `JWT_SECRET` |
+| `FRONTEND_URL` | Backend | Prod | Public frontend URL, used in email links and OAuth redirects |
+| `BACKEND_PUBLIC_URL` | Backend | Prod | Public backend URL, used as the Google OAuth redirect base |
+| `BREVO_API_KEY` | Backend | Prod | Sends verification and reset emails (logged to the console if unset in dev) |
+| `EMAIL_FROM_ADDRESS` | Backend | Prod | Sender address verified in Brevo |
+| `GOOGLE_CLIENT_ID` | Backend | Prod | Enables Google sign-in |
+| `GOOGLE_CLIENT_SECRET` | Backend | Prod | Google OAuth client secret |
+
+## Authentication flows
+
+- **Sign up** with email and password, then verify your address from the emailed link before signing in.
+- **Forgot password** (`/forgot-password`) emails a link to choose a new password.
+- **Continue with Google** signs in or creates an account. If the Google email matches an existing account, the two are linked.
+
+Emails go through Brevo's HTTP API rather than SMTP, since SMTP is commonly blocked on free hosting tiers. Without a custom domain, Brevo sends from a single verified sender address, so messages may land in spam.
+
+### Setup
+
+1. **Brevo:** verify a sender address, then create an API key with the **Transactional email** permission. Set `BREVO_API_KEY` and `EMAIL_FROM_ADDRESS`.
+2. **Google:** create an OAuth client (type *Web application*) and register `http://127.0.0.1:8000/auth/google/callback` plus `<your-backend-url>/auth/google/callback` as redirect URIs. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+3. Set `FRONTEND_URL` and `BACKEND_PUBLIC_URL` to your deployed URLs in production, then run `alembic upgrade head`.
+
+Leave the Brevo variables empty in development and the verification and reset links are printed to the backend console instead. All variables are listed in `.env.example`.
 
 ## Testing
 
@@ -304,8 +329,8 @@ pytest tests/
 
 - **Cold starts on Render.** The free tier spins down after 15 minutes. First request takes ~30s.
 - **Free-tier Gemini quotas.** Vision and generation have strict daily limits on the free tier. The CI Eval Gate uses mock fixtures to bypass this.
-- **No password reset flow.** If a user forgets their password, they can't recover their account yet (no email service configured).
-- **No OAuth (Google/GitHub).** Users must sign up with email/password.
+- **Email limits.** Verification and reset emails go through Brevo's free tier (~300/day, one verified sender address).
+- **Google is the only OAuth provider.** GitHub sign-in is not supported.
 - **Edits re-embed the whole document.** Large edits cost Gemini embedding calls and count against free-tier quotas.
 
 ## Roadmap
@@ -321,8 +346,8 @@ pytest tests/
 - [x] AI auto-generated chat titles
 - [x] Text-to-Speech with voice selection
 - [x] Document library: view, rename, edit and organize documents into collections
-- [ ] Password reset flow (requires email service)
-- [ ] OAuth (Google Sign-In)
+- [x] Password reset flow and email verification (Brevo)
+- [x] OAuth (Google Sign-In)
 - [ ] RAGAS generation metrics (Faithfulness, Answer Relevance)
 - [x] Persistent chat history in Postgres
 - [x] Clickable citations with a source panel

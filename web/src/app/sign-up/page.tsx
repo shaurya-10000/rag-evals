@@ -2,8 +2,15 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Bot, Loader2, Mail, Lock, User } from 'lucide-react';
+import { Loader2, Mail, Lock, User } from 'lucide-react';
+import AuthShell, {
+  errorClass,
+  inputClass,
+  labelClass,
+  linkClass,
+  primaryButtonClass,
+} from '../../components/AuthShell';
+import GoogleButton, { OrDivider } from '../../components/GoogleButton';
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('');
@@ -11,7 +18,8 @@ export default function SignUpPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,64 +32,86 @@ export default function SignUpPage() {
         body: JSON.stringify({ email, username, password }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Sign up failed');
-      router.push('/');
+      if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Sign up failed');
+      setSentTo(email);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed');
+    } finally {
       setIsLoading(false);
     }
   };
 
-  return (
-    <div className="flex items-center justify-center h-screen bg-neutral-50 dark:bg-neutral-950">
-      <div className="w-full max-w-md p-8 bg-white dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-800 rounded-2xl backdrop-blur-md">
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center border border-emerald-500/20">
-            <Bot className="w-6 h-6 text-emerald-400" />
-          </div>
-          <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Create an account</h1>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-2">Username</label>
-            <div className="relative">
-              <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-              <input type="text" required minLength={3} value={username} onChange={(e) => setUsername(e.target.value)}
-                className="w-full bg-neutral-50 dark:bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl py-3 pl-11 pr-4 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                placeholder="johndoe" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-2">Email</label>
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-neutral-50 dark:bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl py-3 pl-11 pr-4 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                placeholder="you@example.com" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-2">Password</label>
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-neutral-50 dark:bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl py-3 pl-11 pr-4 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                placeholder="Min 8 characters" minLength={8} />
-            </div>
-          </div>
-          {error && (<div className="p-3 rounded-lg text-xs text-center bg-red-500/10 text-red-400 border border-red-500/20">{error}</div>)}
-          <button type="submit" disabled={isLoading} className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-emerald-900/20">
-            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign Up'}
-          </button>
-        </form>
-        <p className="text-center text-xs text-neutral-500 mt-6">
-          Already have an account?{' '}
-          <Link href="/sign-in" className="text-emerald-400 hover:text-emerald-300">Sign in</Link>
+  const resend = async () => {
+    setResendState('sending');
+    await fetch('/api/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: sentTo }),
+    }).catch(() => null);
+    setResendState('sent');
+  };
+
+  if (sentTo) {
+    return (
+      <AuthShell title="Check your email">
+        <p className="text-sm text-center text-neutral-600 dark:text-neutral-400 leading-relaxed">
+          We sent a verification link to{' '}
+          <span className="font-medium text-neutral-900 dark:text-neutral-100">{sentTo}</span>.
+          Open it to activate your account, then sign in. It may take a minute and can land in spam.
         </p>
-      </div>
-    </div>
+        <button type="button" onClick={resend} disabled={resendState !== 'idle'}
+          className="w-full mt-6 text-xs text-emerald-400 hover:text-emerald-300 disabled:opacity-60">
+          {resendState === 'sent'
+            ? 'Sent again. Give it a minute.'
+            : resendState === 'sending'
+              ? 'Sending...'
+              : 'Resend verification email'}
+        </button>
+        <p className="text-center text-xs text-neutral-500 mt-4">
+          <Link href="/sign-in" className={linkClass}>Back to sign in</Link>
+        </p>
+      </AuthShell>
+    );
+  }
+
+  return (
+    <AuthShell title="Create an account">
+      <GoogleButton label="Sign up with Google" />
+      <OrDivider />
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className={labelClass}>Username</label>
+          <div className="relative">
+            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+            <input type="text" required minLength={3} value={username} onChange={(e) => setUsername(e.target.value)}
+              className={inputClass} placeholder="johndoe" />
+          </div>
+        </div>
+        <div>
+          <label className={labelClass}>Email</label>
+          <div className="relative">
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+              className={inputClass} placeholder="you@example.com" />
+          </div>
+        </div>
+        <div>
+          <label className={labelClass}>Password</label>
+          <div className="relative">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+            <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)}
+              className={inputClass} placeholder="Min 8 characters" />
+          </div>
+        </div>
+        {error && <div className={errorClass}>{error}</div>}
+        <button type="submit" disabled={isLoading} className={primaryButtonClass}>
+          {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign Up'}
+        </button>
+      </form>
+      <p className="text-center text-xs text-neutral-500 mt-6">
+        Already have an account?{' '}
+        <Link href="/sign-in" className={linkClass}>Sign in</Link>
+      </p>
+    </AuthShell>
   );
 }
-
-
-

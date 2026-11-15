@@ -22,8 +22,13 @@ def get_password_hash(password: str) -> str:
 
 
 def create_access_token(user_id: uuid.UUID, email: str) -> str:
-    expires = datetime.now(UTC) + timedelta(minutes=settings.JWT_EXPIRES_MINUTES)
-    payload = {"sub": str(user_id), "email": email, "exp": expires}
+    now = datetime.now(UTC)
+    payload = {
+        "sub": str(user_id),
+        "email": email,
+        "iat": int(now.timestamp()),
+        "exp": now + timedelta(minutes=settings.JWT_EXPIRES_MINUTES),
+    }
     token = jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
     return str(token)
 
@@ -52,4 +57,12 @@ def get_current_user(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    if not user.email_verified:
+        raise HTTPException(status_code=403, detail="Email not verified")
+
+    # A password reset invalidates every session issued before it.
+    if user.password_changed_at is not None:
+        issued_at = payload.get("iat")
+        if not isinstance(issued_at, int) or issued_at < int(user.password_changed_at.timestamp()):
+            raise HTTPException(status_code=401, detail="Session expired. Please sign in again.")
     return user

@@ -1,7 +1,14 @@
 import { jwtVerify } from 'jose';
 import { NextRequest, NextResponse } from 'next/server';
 
-const PUBLIC_PREFIXES = ['/sign-in', '/sign-up', '/api/auth'] as const;
+const PUBLIC_PREFIXES = [
+  '/sign-in',
+  '/sign-up',
+  '/verify-email',
+  '/forgot-password',
+  '/reset-password',
+  '/api/auth',
+] as const;
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
