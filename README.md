@@ -2,7 +2,7 @@
 
 # 🧠 RAG Evals
 
-**A production-grade multi-tenant RAG architecture with per-user isolation, self-hosted JWT auth, real-time SSE streaming, and a CI-gated evaluation harness.**
+**A production-grade multi-tenant RAG architecture with per-user isolation, self-hosted JWT auth, real-time SSE streaming, dynamic UI themes, and a CI-gated evaluation harness.**
 
 [![CI & Eval Gate](https://github.com/shaurya-10000/rag-evals/actions/workflows/ci.yml/badge.svg)](https://github.com/shaurya-10000/rag-evals/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](./LICENSE)
@@ -12,6 +12,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat-square&logo=nextdotjs&logoColor=white)](https://nextjs.org)
 [![Postgres](https://img.shields.io/badge/Postgres-pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://github.com/pgvector/pgvector)
 [![Gemini](https://img.shields.io/badge/Google_Gemini-AI-4285F4?style=flat-square&logo=google&logoColor=white)](https://ai.google.dev)
+[![Tailwind](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
 
 </div>
 
@@ -21,9 +22,9 @@
 
 |  |  |
 | :--- | :--- |
-| **What** | A multi-tenant RAG SaaS where each user signs up, ingests their own documents (text/PDF/images), and chats with a private knowledge base. Includes streaming SSE responses, self-hosted auth, and CI-gated evaluation. |
-| **Why it's interesting** | Most RAG projects are toy demos. This one has **per-user document isolation** (Alice can't see Bob's documents), **self-hosted JWT auth** (Argon2 + HttpOnly cookies), **multi-modal ingestion** (Vision), a **51-question evaluation harness** with CI gating, **real-time SSE streaming**, **rate limiting**, and a **Hybrid Search + Multithreaded Reranker** pipeline. |
-| **Stack** | Python 3.11 · FastAPI · SQLAlchemy 2.0 · Postgres (pgvector) · Google Gemini (Vision + Text) · Next.js 15 · Tailwind CSS · Pwdlib/Argon2 · python-jose · SlowAPI · Pytest · Ruff · Mypy · GitHub Actions |
+| **What** | A multi-tenant RAG SaaS where each user signs up, ingests their own documents (text/PDF/images), and chats with a private knowledge base. Includes streaming SSE responses, self-hosted auth, a beautiful floating UI, and CI-gated evaluation. |
+| **Why it's interesting** | Most RAG projects are toy demos. This one has **per-user document isolation**, **self-hosted JWT auth**, **multi-modal ingestion**, a **51-question eval harness**, **real-time SSE streaming**, **auto-generated chat titles**, **Text-to-Speech**, **dynamic color themes**, and a **Hybrid Search + Reranker** pipeline. |
+| **Stack** | Python 3.11 · FastAPI · SQLAlchemy 2.0 · Postgres (pgvector) · Google Gemini · Next.js 16 · Tailwind CSS v4 · Framer Motion · Pwdlib/Argon2 · python-jose · SlowAPI · Pytest · Ruff · Mypy · GitHub Actions |
 
 ## Contents
 
@@ -82,15 +83,17 @@ flowchart TD
 
     LLM -->|"6. Streamed Tokens + Citations"| QueryAPI
     QueryAPI -->|"7. SSE Stream"| Client
+    
+    Client -.->|"Auto-generate Title"| TitleAPI["FastAPI /generate-title"]
 ```
 
 ### Design principles
 
-1. **Multi-tenant by default.** Every document has a `user_id`. Every query filters by `user_id`. Alice cannot see Bob's documents, even if they have the same content.
+1. **Multi-tenant by default.** Every document has a `user_id`. Every query filters by `user_id`.
 2. **The database is the source of truth for vectors.** Postgres + `pgvector` handles millions of embeddings with transactional safety.
 3. **Evaluation is a first-class citizen.** The eval harness runs both locally and in CI.
-4. **Fail gracefully.** LLMs fail; the fallback chain ensures the user still gets an answer. Vision models fall back to lighter models.
-5. **Security by default.** JWT auth, Argon2 hashing, rate limiting, upload size caps, and API key defense-in-depth.
+4. **Fail gracefully.** LLMs fail; the fallback chain ensures the user still gets an answer.
+5. **Beautiful UI by default.** Dynamic themes (Light/Dark/System + 5 accent colors), Framer Motion animations, and TTS support.
 
 ## Core guarantees
 
@@ -102,7 +105,7 @@ flowchart TD
 | The AI cites its sources | Prompt explicitly says: "Cite the context chunks you use by writing [1], [2]." |
 | The API won't crash on LLM outage | The `Generator` catches `Exception` and loops through the `self.models` array. |
 | Multi-modal support | PDFs and Images are parsed into text (via PyPDF and Gemini Vision) before embedding. |
-| Real-time streaming | The `/query` endpoint returns an SSE `StreamingResponse`, and the UI renders tokens as they arrive. |
+| Real-time streaming | The `/query` endpoint returns an SSE `StreamingResponse`. |
 | Type safety across the board | `mypy --strict` passes on all source files. |
 | CI won't merge regressions | `eval-gate` job fails if `recall_at_k < 0.7`. |
 
@@ -122,20 +125,19 @@ flowchart TD
 
 | Decision | Why | Trade-off |
 | :--- | :--- | :--- |
-| **Postgres + pgvector, not Pinecone** | Keeps everything in one database; allows transactional rollbacks and per-user RLS. | Requires managing a Postgres instance. |
-| **Self-hosted JWT (not Clerk/Auth0)** | Zero external dependency; users stored in your own Postgres. | You own account recovery, password reset, OAuth (if added). |
-| **Argon2, not bcrypt** | OWASP-recommended. No 72-byte limit. GPU-resistant. | Slightly slower hashing (which is the point). |
-| **Composite unique constraint `(user_id, content_hash)`** | Two users uploading the same file get independent rows. | Slightly more complex migration than a global unique index. |
+| **Postgres + pgvector** | Keeps everything in one database; allows transactional rollbacks and per-user RLS. | Requires managing a Postgres instance. |
+| **Self-hosted JWT** | Zero external dependency; users stored in your own Postgres. | You own account recovery and OAuth. |
+| **Argon2, not bcrypt** | OWASP-recommended. No 72-byte limit. GPU-resistant. | Slightly slower hashing. |
 | **Hybrid Search (BM25 + Vector)** | Dense vectors miss exact keyword matches (SKUs, names, acronyms). | Adds a `tsvector` column and GIN index. |
-| **Multithreaded Cross-Encoder Reranker** | Bi-encoders are fast but imprecise. Cross-encoders are slow but accurate. We multithread ONNX to drop latency from 28s → ~200ms. | Requires CPU cores to run efficiently. |
-| **Sentence-Aware Chunking** | Splitting by arbitrary characters cuts words in half. | Slightly more complex than a character loop. |
+| **Multithreaded Reranker** | Bi-encoders are fast but imprecise. Cross-encoders are accurate. We multithread ONNX to drop latency from 28s → ~200ms. | Requires CPU cores to run efficiently. |
 | **Server-Sent Events (SSE)** | Real-time streaming; perceived latency drops from seconds to milliseconds. | Requires the Next.js route to proxy without buffering. |
+| **Next.js 16 + Tailwind v4** | Cutting edge, zero-config CSS variables, extremely fast builds with Turbopack. | Requires strict adherence to new Tailwind v4 config rules. |
+| **Framer Motion** | Smooth spring animations for the floating sidebar. | Adds ~10kb to bundle size. |
+| **Browser SpeechSynthesis** | TTS without hitting an API or paying for audio generation. | Voice options depend on the user's OS. |
 
 ---
 
 ## The Evaluation Harness
-
-Most RAG projects only test that the API returns a `200 OK`. We test that the AI returns the **correct** answer.
 
 The `eval/gold_set/qa_pairs.json` file contains **51 curated questions** in four categories:
 - **Direct** (20): Exact keyword lookups.
@@ -176,12 +178,12 @@ cd rag-evals
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
-pip install "pwdlib[argon2]" python-jose[cryptography] "pydantic[email]" python-multipart slowapi
+pip install "pwdlib[argon2]" "python-jose[cryptography]" "pydantic[email]" python-multipart slowapi
 
 # Frontend setup
 cd web
 npm install
-npm install jose
+npm install jose framer-motion remark-gfm
 cd ..
 
 # Start the database
@@ -200,7 +202,7 @@ alembic upgrade head
 2. Create `web/.env.local`:
    ```env
    NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:8000
-   NEXT_PUBLIC_RAG_API_KEY=<same-as-RAG_API_KEY>
+   RAG_API_KEY=<same-as-RAG_API_KEY>
    JWT_SECRET=<same-as-JWT_SECRET>
    ```
 
@@ -215,18 +217,18 @@ alembic upgrade head
    npm run dev
    ```
 
-Open [http://localhost:3000](http://localhost:3000). You'll be redirected to `/sign-in` → click "Create one" → sign up with username, email, password.
+Open [http://localhost:3000](http://localhost:3000). You'll be redirected to `/sign-in` → click "Create one" → sign up.
 
 ## Environment variables
 
 | Variable | Scope | Required | Purpose |
 | :--- | :--- | :---: | :--- |
 | `DATABASE_URL` | Backend | ✅ | Postgres connection string |
-| `GEMINI_API_KEY` | Backend | ✅ | Enables embeddings, vision, and generation |
+| `GEMINI_API_KEY` | Backend | ✅ | Enables embeddings, vision, generation, and auto-titles |
 | `RAG_API_KEY` | Backend | ✅ | Protects `/ingest` and `/query` from direct abuse |
 | `JWT_SECRET` | Backend | ✅ | Signs/verifies auth tokens |
 | `NEXT_PUBLIC_BACKEND_URL` | Frontend | ✅ | The URL of the deployed backend API |
-| `NEXT_PUBLIC_RAG_API_KEY` | Frontend | ✅ | Must match `RAG_API_KEY` |
+| `RAG_API_KEY` | Frontend | ✅ | Must match backend `RAG_API_KEY` |
 | `JWT_SECRET` | Frontend | ✅ | Must match backend `JWT_SECRET` |
 
 ## Testing
@@ -235,11 +237,12 @@ Open [http://localhost:3000](http://localhost:3000). You'll be redirected to `/s
 # Unit tests (fast, mock embedder)
 pytest tests/unit
 
-# Integration tests (real Postgres)
+# Integration tests (real Postgres, mock AI models)
 pytest tests/integration
 
 # Pre-flight before pushing
-ruff check .
+ruff format src tests
+ruff check src tests
 mypy src
 pytest tests/
 ```
@@ -250,8 +253,9 @@ pytest tests/
 .
 ├── .github/workflows/ci.yml    # CI pipeline with Eval Gate
 ├── eval/gold_set/              # 51 curated Q&A pairs
+├── eval/fixtures/              # Deterministic embeddings for CI
 ├── src/rag/
-│   ├── api/                    # FastAPI routes (multi-modal + SSE + auth)
+│   ├── api/                    # FastAPI routes (query, ingest, title, auth)
 │   ├── auth/                   # JWT + Argon2 password utilities
 │   ├── config/                 # Pydantic settings
 │   ├── db_models.py            # User, Document, Chunk models
@@ -261,14 +265,17 @@ pytest tests/
 │   ├── migrations/             # Alembic migrations
 │   ├── repository.py           # Idempotent DB operations (per-user)
 │   └── retrieve/               # Hybrid Retriever (scoped by user_id)
-├── web/                        # Next.js frontend (auth + tabbed UI)
+├── web/                        # Next.js frontend
+│   ├── src/app/                # App Router pages
+│   ├── src/components/         # Shared components (UserMenu, ThemeProvider)
+│   └── src/app/api/            # API proxies to FastAPI
 └── tests/                      # Unit and integration tests
 ```
 
 ## Known limitations
 
 - **Cold starts on Render.** The free tier spins down after 15 minutes. First request takes ~30s.
-- **Free-tier Gemini quotas.** Vision and generation have strict daily limits on the free tier.
+- **Free-tier Gemini quotas.** Vision and generation have strict daily limits on the free tier. The CI Eval Gate uses mock fixtures to bypass this.
 - **No password reset flow.** If a user forgets their password, they can't recover their account yet (no email service configured).
 - **No OAuth (Google/GitHub).** Users must sign up with email/password.
 
@@ -279,10 +286,15 @@ pytest tests/
 - [x] Self-hosted JWT auth with Argon2
 - [x] Per-user document isolation
 - [x] Rate limiting + upload limits
+- [x] Rich Markdown + Table rendering (remark-gfm)
+- [x] Dynamic UI themes (Light/Dark/System + 5 accent colors)
+- [x] Floating history sidebar with Framer Motion
+- [x] AI auto-generated chat titles
+- [x] Text-to-Speech with voice selection
 - [ ] Password reset flow (requires email service)
 - [ ] OAuth (Google Sign-In)
 - [ ] RAGAS generation metrics (Faithfulness, Answer Relevance)
-- [ ] Persistent chat history in Postgres
+- [ ] Persistent chat history in Postgres (currently LocalStorage)
 
 ---
 
