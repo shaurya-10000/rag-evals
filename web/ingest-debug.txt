@@ -1,0 +1,818 @@
+ROOT: C:\Users\shaur\OneDrive\Desktop\rag-evals
+
+=== 1. FILES WITH /ingest ROUTE ===
+C:\Users\shaur\OneDrive\Desktop\rag-evals\src\rag\api\ingest.py
+C:\Users\shaur\OneDrive\Desktop\rag-evals\src\rag\eval\run_eval.py
+C:\Users\shaur\OneDrive\Desktop\rag-evals\src\rag\repository.py
+C:\Users\shaur\OneDrive\Desktop\rag-evals\tests\integration\test_api.py
+C:\Users\shaur\OneDrive\Desktop\rag-evals\tests\integration\test_eval_runner.py
+C:\Users\shaur\OneDrive\Desktop\rag-evals\tests\integration\test_repository.py
+C:\Users\shaur\OneDrive\Desktop\rag-evals\tests\integration\test_retriever.py
+
+=== 2. MATCHING LINES (with context) ===
+--- .\src\rag\api\auth.py:2
+  from fastapi import APIRouter, Depends, HTTPException, Response
+> from pydantic import BaseModel, EmailStr, Field
+  from sqlalchemy.orm import Session
+  
+  from rag.auth.utils import create_access_token, get_password_hash, verify_password
+  from rag.config.settings import settings
+  from rag.db import get_db
+  from rag.db_models import User
+--- .\src\rag\api\auth.py:13
+  
+  
+> class RegisterRequest(BaseModel):
+      email: EmailStr
+      username: str = Field(..., min_length=3, max_length=50)
+      password: str
+  
+  
+  class LoginRequest(BaseModel):
+--- .\src\rag\api\auth.py:19
+  
+  
+> class LoginRequest(BaseModel):
+      email: EmailStr
+      password: str
+  
+  
+  def _set_token_cookie(response: Response, token: str) -> None:
+      response.set_cookie(
+--- .\src\rag\api\ingest.py:9
+  from pypdf import PdfReader
+  from sqlalchemy.orm import Session
+> from starlette.datastructures import UploadFile as StarletteUploadFile
+  
+  from rag.api.deps import get_embedder, limiter, verify_api_key
+  from rag.api.schemas import IngestResponse
+  from rag.api.vision import VisionError, describe_image
+  from rag.auth.utils import get_current_user
+  from rag.db import get_db
+--- .\src\rag\api\ingest.py:57
+  
+      if content_type.startswith("application/json"):
+>         data = await request.json()
+          title = str(data.get("title", "Untitled"))
+          text = str(data.get("text", ""))
+          if len(text.strip()) < 10:
+              raise HTTPException(status_code=422, detail="Text must be at least 10 characters long.")
+          return title, text, "manual_text_entry"
+  
+--- .\src\rag\api\ingest.py:65
+  
+      if content_type.startswith("multipart/form-data"):
+>         form = await request.form()
+          title = str(form.get("title", "Untitled"))
+          file = form.get("file")
+          if not isinstance(file, StarletteUploadFile):
+              raise HTTPException(status_code=400, detail="Missing or invalid file upload")
+  
+          contents = await file.read()
+--- .\src\rag\api\ingest.py:68
+          title = str(form.get("title", "Untitled"))
+          file = form.get("file")
+>         if not isinstance(file, StarletteUploadFile):
+              raise HTTPException(status_code=400, detail="Missing or invalid file upload")
+  
+          contents = await file.read()
+          if len(contents) > MAX_UPLOAD_BYTES:
+              raise HTTPException(status_code=413, detail="File too large. Max 10MB.")
+  
+--- .\src\rag\api\ingest.py:84
+  
+  
+> @router.post("/ingest", response_model=IngestResponse)
+  @limiter.limit("3/minute")
+  async def ingest(
+      request: Request,
+      db: Session = Depends(get_db),
+      embedder: Embedder = Depends(get_embedder),
+      _: str = Depends(verify_api_key),
+--- .\src\rag\api\ingest.py:86
+  @router.post("/ingest", response_model=IngestResponse)
+  @limiter.limit("3/minute")
+> async def ingest(
+      request: Request,
+      db: Session = Depends(get_db),
+      embedder: Embedder = Depends(get_embedder),
+      _: str = Depends(verify_api_key),
+      current_user: User = Depends(get_current_user),
+  ) -> IngestResponse:
+--- .\src\rag\api\main.py:43
+  
+  @app.exception_handler(genai_errors.APIError)
+> async def ai_service_error_handler(request: Request, exc: genai_errors.APIError) -> JSONResponse:
+      logger.error("Gemini API error code=%s path=%s: %s", exc.code, request.url.path, exc)
+      if exc.code == 429:
+          detail = "The AI service is busy right now. Please try again in a minute."
+          return JSONResponse(status_code=503, content={"detail": detail})
+      return JSONResponse(
+          status_code=502,
+--- .\src\rag\api\schemas.py:4
+  from uuid import UUID
+  
+> from pydantic import BaseModel, Field
+  
+  
+  class IngestResponse(BaseModel):
+      document_id: UUID
+      status: str
+  
+--- .\src\rag\api\schemas.py:7
+  
+  
+> class IngestResponse(BaseModel):
+      document_id: UUID
+      status: str
+  
+  
+  class TitleRequest(BaseModel):
+      prompt: str
+--- .\src\rag\api\schemas.py:12
+  
+  
+> class TitleRequest(BaseModel):
+      prompt: str
+  
+  
+  class QueryRequest(BaseModel):
+      query: str = Field(..., min_length=2)
+      top_k: int = Field(default=5, ge=1, le=20)
+--- .\src\rag\api\schemas.py:16
+  
+  
+> class QueryRequest(BaseModel):
+      query: str = Field(..., min_length=2)
+      top_k: int = Field(default=5, ge=1, le=20)
+  
+  
+  class ChunkResult(BaseModel):
+      id: UUID
+--- .\src\rag\api\schemas.py:21
+  
+  
+> class ChunkResult(BaseModel):
+      id: UUID
+      content: str
+      metadata: dict[str, Any]
+  
+  
+  class QueryResponse(BaseModel):
+--- .\src\rag\api\schemas.py:27
+  
+  
+> class QueryResponse(BaseModel):
+      answer: str
+      results: list[ChunkResult]
+--- .\src\rag\repository.py:16
+          self.chunker = DocumentChunker(chunk_size=DEFAULT_CHUNK_SIZE)
+  
+>     def ingest_document(
+          self,
+          user_id: uuid.UUID,
+          title: str,
+          text: str,
+          source_url: str | None = None,
+      ) -> Document:
+--- .\tests\integration\test_api.py:46
+          "source_url": "https://example.com",
+      }
+>     response = client.post("/ingest", json=ingest_payload, headers=HEADERS)
+      assert response.status_code == 200, response.text
+  
+      query_payload = {"query": "unique document", "top_k": 2}
+      with client.stream("POST", "/query", json=query_payload, headers=HEADERS) as response:
+          assert response.status_code == 200
+          assert response.headers["content-type"].startswith("text/event-stream")
+
+=== 3. FULL ROUTE FILE(S) ===
+
+##### .\src\rag\api\ingest.py
+import logging
+import uuid
+from io import BytesIO
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from google.genai import errors as genai_errors
+from pypdf import PdfReader
+from sqlalchemy.orm import Session
+from starlette.datastructures import UploadFile as StarletteUploadFile
+
+from rag.api.deps import get_embedder, limiter, verify_api_key
+from rag.api.schemas import IngestResponse
+from rag.api.vision import VisionError, describe_image
+from rag.auth.utils import get_current_user
+from rag.db import get_db
+from rag.db_models import User
+from rag.repository import DocumentRepository
+from rag.retrieve.embedder import Embedder
+
+logger = logging.getLogger("rag.api.ingest")
+router = APIRouter()
+
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
+
+
+def _extract_pdf_text(contents: bytes) -> str:
+    try:
+        reader = PdfReader(BytesIO(contents))
+        pages = (page.extract_text() for page in reader.pages)
+        return "\n".join(text for text in pages if text)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Invalid PDF file") from e
+
+
+def _extract_upload_text(filename: str, contents: bytes) -> str:
+    if filename.endswith(".pdf"):
+        return _extract_pdf_text(contents)
+    if filename.endswith(IMAGE_EXTENSIONS):
+        try:
+            return describe_image(filename, contents)
+        except VisionError as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
+    try:
+        return contents.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(
+            status_code=400, detail="File must be UTF-8 text, PDF, or Image"
+        ) from None
+
+
+async def _read_payload(request: Request) -> tuple[str, str, str]:
+    """Return (title, text, source) from a JSON body or a multipart upload."""
+    content_type = request.headers.get("content-type", "")
+
+    if content_type.startswith("application/json"):
+        data = await request.json()
+        title = str(data.get("title", "Untitled"))
+        text = str(data.get("text", ""))
+        if len(text.strip()) < 10:
+            raise HTTPException(status_code=422, detail="Text must be at least 10 characters long.")
+        return title, text, "manual_text_entry"
+
+    if content_type.startswith("multipart/form-data"):
+        form = await request.form()
+        title = str(form.get("title", "Untitled"))
+        file = form.get("file")
+        if not isinstance(file, StarletteUploadFile):
+            raise HTTPException(status_code=400, detail="Missing or invalid file upload")
+
+        contents = await file.read()
+        if len(contents) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="File too large. Max 10MB.")
+
+        filename = (file.filename or "unknown").lower()
+        text = _extract_upload_text(filename, contents)
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Extracted text is empty")
+        return title, text, f"uploaded:{filename}"
+
+    raise HTTPException(status_code=415, detail="Unsupported Media Type")
+
+
+@router.post("/ingest", response_model=IngestResponse)
+@limiter.limit("3/minute")
+async def ingest(
+    request: Request,
+    db: Session = Depends(get_db),
+    embedder: Embedder = Depends(get_embedder),
+    _: str = Depends(verify_api_key),
+    current_user: User = Depends(get_current_user),
+) -> IngestResponse:
+    request_id = str(uuid.uuid4())[:8]
+    logger.info(f"[{request_id}] Ingest started for user={current_user.username}")
+
+    title, text, source = await _read_payload(request)
+
+    try:
+        repo = DocumentRepository(db=db, embedder=embedder)
+        doc = repo.ingest_document(
+            user_id=current_user.id, title=title, text=text, source_url=source
+        )
+        logger.info(f"[{request_id}] Ingest done. doc_id={doc.id}")
+        return IngestResponse(document_id=doc.id, status="ingested")
+    except genai_errors.APIError:
+        raise
+    except Exception as e:
+        logger.error(f"[{request_id}] Ingest failed: {type(e).__name__} - {e}")
+        raise HTTPException(status_code=500, detail="Ingest failed. Please try again.") from e
+
+##### .\src\rag\eval\run_eval.py
+import json
+import sys
+import uuid
+
+from sqlalchemy.orm import sessionmaker
+
+from rag.auth.utils import get_password_hash
+from rag.db import engine
+from rag.db_models import Chunk, Document, User
+from rag.eval.runner import EvalRunner
+from rag.repository import DocumentRepository
+from rag.retrieve.embedder import Embedder
+from rag.retrieve.retriever import Retriever
+
+
+def main() -> None:
+    print("Running evaluation harness...")
+
+    SessionLocal = sessionmaker(bind=engine)
+    db = SessionLocal()
+    embedder = Embedder(mock=True)
+    repo = DocumentRepository(db=db, embedder=embedder)
+    retriever = Retriever(db=db, embedder=embedder)
+    runner = EvalRunner(retriever)
+
+    # Create a dedicated eval user so the FK constraint is satisfied
+    eval_user = db.query(User).filter(User.email == "eval@rag-evals.local").first()
+    if not eval_user:
+        eval_user = User(
+            id=uuid.uuid4(),
+            email="eval@rag-evals.local",
+            username="eval_bot",
+            hashed_password=get_password_hash("unused_password_123"),
+        )
+        db.add(eval_user)
+        db.commit()
+        db.refresh(eval_user)
+
+    # Clean only this eval user's documents
+    db.query(Chunk).filter(
+        Chunk.document_id.in_(db.query(Document.id).filter(Document.user_id == eval_user.id))
+    ).delete(synchronize_session=False)
+    db.query(Document).filter(Document.user_id == eval_user.id).delete(synchronize_session=False)
+    db.commit()
+
+    gold_set = runner.load_gold_set("eval/gold_set/qa_pairs.json")
+    for item in gold_set:
+        expected_chunk = item.get("expected_answer_chunk", "")
+        if expected_chunk and expected_chunk != "NONE":
+            repo.ingest_document(user_id=eval_user.id, title="Eval Doc", text=expected_chunk)
+
+    results = runner.run(gold_set, k=3, user_id=eval_user.id)
+    print(f"Results: {json.dumps(results, indent=2)}")
+
+    RECALL_THRESHOLD = 0.7
+    if results["recall_at_k"] < RECALL_THRESHOLD:
+        print(f"FAILED: Recall@K ({results['recall_at_k']}) < {RECALL_THRESHOLD}")
+        sys.exit(1)
+
+    print("PASSED: Metrics are within acceptable limits.")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
+
+##### .\src\rag\repository.py
+import uuid
+
+from sqlalchemy.orm import Session
+
+from rag.db_models import Chunk, Document
+from rag.ingest.pipeline import DEFAULT_CHUNK_SIZE, DocumentChunker, IngestionPipeline
+from rag.retrieve.embedder import Embedder
+
+
+class DocumentRepository:
+    def __init__(self, db: Session, embedder: Embedder):
+        self.db = db
+        self.embedder = embedder
+        self.chunker = DocumentChunker(chunk_size=DEFAULT_CHUNK_SIZE)
+
+    def ingest_document(
+        self,
+        user_id: uuid.UUID,
+        title: str,
+        text: str,
+        source_url: str | None = None,
+    ) -> Document:
+        pipeline = IngestionPipeline(chunker=self.chunker)
+        data = pipeline.process_document(title, text, source_url)
+        content_hash = data["content_hash"]
+
+        existing = (
+            self.db.query(Document)
+            .filter(Document.content_hash == content_hash, Document.user_id == user_id)
+            .first()
+        )
+        if existing:
+            return existing
+
+        doc = Document(
+            user_id=user_id,
+            title=title,
+            source_url=source_url,
+            content_hash=content_hash,
+        )
+        self.db.add(doc)
+        self.db.flush()
+
+        chunks_data = data["chunks"]
+        chunks_text = [c["content"] for c in chunks_data]
+        embeddings = self.embedder.embed_texts(chunks_text)
+
+        for chunk_info, embedding in zip(chunks_data, embeddings, strict=True):
+            chunk = Chunk(
+                document_id=doc.id,
+                content=chunk_info["content"],
+                embedding=embedding,
+                metadata_col=chunk_info["metadata"],
+            )
+            self.db.add(chunk)
+
+        self.db.commit()
+        self.db.refresh(doc)
+        return doc
+
+##### .\tests\integration\test_api.py
+import uuid
+
+from fastapi.testclient import TestClient
+
+from rag.api.deps import get_embedder, get_generator, get_reranker
+from rag.api.main import app
+from rag.config.settings import settings
+from rag.generate.generator import Generator
+from rag.generate.reranker import Reranker
+from rag.retrieve.embedder import Embedder
+
+client = TestClient(app)
+
+# Use mocks for all external AI services to prevent 429 Rate Limits in CI
+app.dependency_overrides[get_embedder] = lambda: Embedder(mock=True)
+app.dependency_overrides[get_generator] = lambda: Generator(mock=True)
+app.dependency_overrides[get_reranker] = lambda: Reranker(mock=True)
+
+HEADERS = {"X-API-Key": settings.RAG_API_KEY}
+
+
+def test_health_check():
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_ingest_and_query():
+    # Sign up a unique user for this test
+    uniq = uuid.uuid4().hex[:8]
+    signup = client.post(
+        "/auth/register",
+        json={
+            "email": f"test_{uniq}@example.com",
+            "username": f"testuser_{uniq}",
+            "password": "testpassword123",
+        },
+    )
+    assert signup.status_code == 200, signup.text
+
+    ingest_payload = {
+        "title": "API Test Document",
+        "text": "This is a unique document for the API test.",
+        "source_url": "https://example.com",
+    }
+    response = client.post("/ingest", json=ingest_payload, headers=HEADERS)
+    assert response.status_code == 200, response.text
+
+    query_payload = {"query": "unique document", "top_k": 2}
+    with client.stream("POST", "/query", json=query_payload, headers=HEADERS) as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+
+        raw_text = "".join(response.iter_text())
+        assert "Mock" in raw_text
+        assert '"type": "sources"' in raw_text
+        assert '"type": "done"' in raw_text
+
+##### .\tests\integration\test_eval_runner.py
+import uuid
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from rag.auth.utils import get_password_hash
+from rag.config.settings import settings
+from rag.db_models import Base, User
+from rag.eval.runner import EvalRunner
+from rag.repository import DocumentRepository
+from rag.retrieve.embedder import Embedder
+from rag.retrieve.retriever import Retriever
+
+DOCS = {
+    "Why do cats purr?": "Cats purr softly when they feel content.",
+    "Where do rockets launch?": "Rockets launch from coastal pads at dawn.",
+    "Why does bread need yeast?": "Bread dough rises because yeast produces gas.",
+}
+
+
+@pytest.fixture(scope="module")
+def db_session():
+    engine = create_engine(settings.DATABASE_URL)
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    yield session
+    session.close()
+
+
+def _make_user(db_session) -> User:
+    uniq = uuid.uuid4().hex[:8]
+    user = User(
+        email=f"eval_{uniq}@example.com",
+        username=f"evaluser_{uniq}",
+        hashed_password=get_password_hash("testpassword123"),
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+def test_eval_runner_scores_scoped_retrieval(db_session):
+    embedder = Embedder(mock=True)
+    repo = DocumentRepository(db=db_session, embedder=embedder)
+    runner = EvalRunner(Retriever(db=db_session, embedder=embedder))
+    user = _make_user(db_session)
+
+    for text in DOCS.values():
+        repo.ingest_document(user.id, "Eval Doc", text)
+
+    gold_set = [
+        {"type": "direct", "question": q, "expected_answer_chunk": text} for q, text in DOCS.items()
+    ]
+    gold_set.append(
+        {"type": "unanswerable", "question": "Who won in 1998?", "expected_answer_chunk": "NONE"}
+    )
+
+    results = runner.run(gold_set, k=1, user_id=user.id)
+    assert results["num_questions"] == 3  # unanswerable item is skipped
+    assert results["recall_at_k"] == 1.0
+    assert results["mrr"] == 1.0
+
+    # Scoping: a user with no documents must retrieve nothing.
+    empty = runner.run(gold_set, k=1, user_id=uuid.uuid4())
+    assert empty["recall_at_k"] == 0.0
+
+##### .\tests\integration\test_repository.py
+import uuid
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from rag.auth.utils import get_password_hash
+from rag.config.settings import settings
+from rag.db_models import Base, Document, User
+from rag.repository import DocumentRepository
+from rag.retrieve.embedder import Embedder
+
+
+@pytest.fixture(scope="module")
+def db_session():
+    engine = create_engine(settings.DATABASE_URL)
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    yield session
+    session.close()
+
+
+def test_ingest_document_is_idempotent(db_session):
+    embedder = Embedder(mock=True)
+    repo = DocumentRepository(db=db_session, embedder=embedder)
+
+    uniq = uuid.uuid4().hex[:8]
+    user = User(
+        email=f"repo_{uniq}@example.com",
+        username=f"repouser_{uniq}",
+        hashed_password=get_password_hash("testpassword123"),
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    text = "This is a test document content."
+
+    doc1 = repo.ingest_document(user.id, "Test Doc", text)
+    assert doc1.id is not None
+
+    doc2 = repo.ingest_document(user.id, "Test Doc (Duplicate)", text)
+    assert doc1.id == doc2.id
+
+    # Uniqueness is per-user, not global
+    count = (
+        db_session.query(Document)
+        .filter_by(content_hash=doc1.content_hash, user_id=user.id)
+        .count()
+    )
+    assert count == 1
+
+##### .\tests\integration\test_retriever.py
+import uuid
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from rag.auth.utils import get_password_hash
+from rag.config.settings import settings
+from rag.db_models import Base, User
+from rag.repository import DocumentRepository
+from rag.retrieve.embedder import Embedder
+from rag.retrieve.retriever import Retriever
+
+
+@pytest.fixture(scope="module")
+def db_session():
+    engine = create_engine(settings.DATABASE_URL)
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    yield session
+    session.close()
+
+
+def test_retriever_returns_similar_chunks(db_session):
+    embedder = Embedder(mock=True)
+    repo = DocumentRepository(db=db_session, embedder=embedder)
+    retriever = Retriever(db=db_session, embedder=embedder)
+
+    uniq = uuid.uuid4().hex[:8]
+    user = User(
+        email=f"ret_{uniq}@example.com",
+        username=f"retuser_{uniq}",
+        hashed_password=get_password_hash("testpassword123"),
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    repo.ingest_document(user.id, "Test Retrieval Doc", "Unique text for retrieval.")
+
+    results = retriever.search("Random query", user_id=user.id, top_k=2)
+
+    assert len(results) > 0
+    assert isinstance(results[0].content, str)
+
+=== 4. FRONTEND CALLERS OF /api/seed ===
+--- .\src\app\page.tsx:182
+      setIsIngesting(true);
+      setIngestStatus('Ingesting...');
+      try {
+        let res;
+        if (ingestMode === 'text') {
+          if (docText.trim().length < 10) throw new Error('Text must be at least 10 characters.');
+>         res = await fetch('/api/seed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: docTitle, text: docText }) });
+        } else {
+          if (!file) throw new Error('Please select a file.');
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('title', docTitle);
+          res = await fetch('/api/seed', { method: 'POST', body: formData });
+        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to ingest');
+        setIngestStatus('Successfully added!');
+--- .\src\app\page.tsx:188
+          res = await fetch('/api/seed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: docTitle, text: docText }) });
+        } else {
+          if (!file) throw new Error('Please select a file.');
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('title', docTitle);
+>         res = await fetch('/api/seed', { method: 'POST', body: formData });
+        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to ingest');
+        setIngestStatus('Successfully added!');
+        setDocTitle(''); setDocText(''); setFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        setTimeout(() => setIngestStatus(''), 3000);
+      } catch (err) {
+        setIngestStatus('Error: ' + (err instanceof Error ? err.message : 'Failed to ingest'));
+      } finally { setIsIngesting(false); }
+
+=== 5. DEPLOY CONFIG ===
+
+##### .\Dockerfile
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    FASTEMBED_CACHE_PATH=/app/.fastembed_cache
+
+WORKDIR /app
+
+COPY . .
+RUN pip install -e "."
+
+# Bake the reranker model into the image so the first request doesn't download it
+RUN python -c "from fastembed.rerank.cross_encoder import TextCrossEncoder; TextCrossEncoder(model_name='Xenova/ms-marco-MiniLM-L-6-v2', cache_dir='/app/.fastembed_cache')"
+
+CMD ["sh", "-c", "uvicorn rag.api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+
+##### .\pyproject.toml
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rag-evals"
+version = "0.1.0"
+description = "Production-grade RAG architecture with CI-gated evaluation harness"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.29.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.0",
+    "sqlalchemy>=2.0.0",
+    "psycopg[binary]>=3.1.0",
+    "pgvector>=0.2.6",
+    "alembic>=1.13.0",
+    "google-genai>=1.0.0",
+    "fastembed>=0.4.0",
+    "pwdlib[argon2]>=0.2.0",
+    "python-jose[cryptography]>=3.3.0",
+    "python-multipart>=0.0.9",
+    "slowapi>=0.1.9",
+    "pydantic[email]>=2.6.0",
+    "pypdf>=4.0.0",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.1.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+    "locust>=2.24.0",
+    "pre-commit>=3.7.0",
+    "httpx>=0.27.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rag"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/rag/api/*.py" = ["B008"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "rag.migrations.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "rag.retrieve.embedder"
+ignore_errors = true
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+asyncio_default_fixture_loop_scope = "function"
+
+
+
+
+
+=== 6. ENV VARS READ BY BACKEND ===
+.\src\rag\api\auth.py:29  secure=settings.is_production,
+.\src\rag\api\auth.py:31  max_age=settings.JWT_EXPIRES_MINUTES * 60,
+.\src\rag\api\deps.py:21  expected = settings.RAG_API_KEY.encode()
+.\src\rag\api\deps.py:39  enabled = os.getenv("RERANK_ENABLED", "true").lower() != "false"
+.\src\rag\api\main.py:25  if os.getenv("RERANK_ENABLED", "true").lower() != "false":
+.\src\rag\api\query.py:25  RERANK_CANDIDATES = int(os.getenv("RERANK_CANDIDATES", "10"))
+.\src\rag\api\title.py:22  client = genai.Client(api_key=settings.GEMINI_API_KEY)
+.\src\rag\api\vision.py:28  api_key=settings.GEMINI_API_KEY,
+.\src\rag\auth\utils.py:25  expires = datetime.now(UTC) + timedelta(minutes=settings.JWT_EXPIRES_MINUTES)
+.\src\rag\auth\utils.py:27  token = jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+.\src\rag\auth\utils.py:45  payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+.\src\rag\eval\generate_gold_set.py:35  client = genai.Client(api_key=settings.GEMINI_API_KEY)
+.\src\rag\generate\generator.py:20  api_key=settings.GEMINI_API_KEY,
+.\src\rag\generate\reranker.py:25  env_threads = os.getenv("RERANK_THREADS")
+.\src\rag\generate\reranker.py:30  cache_dir=os.getenv("FASTEMBED_CACHE_PATH"),
+.\src\rag\generate\reranker.py:44  THRESHOLD = float(os.getenv("RERANK_SCORE_THRESHOLD", "0.0"))
+.\src\rag\migrations\env.py:17  db_url = os.getenv("DATABASE_URL")
+.\src\rag\retrieve\embedder.py:69  self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+.\src\rag\retrieve\embedder.py:74  resolved = Path(path or os.environ.get("MOCK_EMBEDDINGS_PATH") or DEFAULT_FIXTURE_PATH)
+.\src\rag\db.py:9  engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True, pool_recycle=1800)
+.\tests\integration\test_api.py:19  HEADERS = {"X-API-Key": settings.RAG_API_KEY}
+.\tests\integration\test_eval_runner.py:24  engine = create_engine(settings.DATABASE_URL)
+.\tests\integration\test_repository.py:16  engine = create_engine(settings.DATABASE_URL)
+.\tests\integration\test_retriever.py:17  engine = create_engine(settings.DATABASE_URL)
