@@ -6,6 +6,7 @@ import { Loader2 } from 'lucide-react';
 import type { CollectionInfo } from '@/components/documents-tab';
 import type { ChatMessage, Source } from '@/lib/chat-types';
 import { Composer } from './composer';
+import { DocumentViewer } from './document-viewer';
 import { EmptyState } from './empty-state';
 import { MessageItem } from './message-item';
 import { SourcePanel } from './source-panel';
@@ -25,6 +26,7 @@ type Props = {
 };
 
 type Citation = { conversationId: string | null; sources: Source[]; number: number };
+type ViewerTarget = { conversationId: string | null; source: Source; number: number };
 
 export function ChatTab({
   active,
@@ -43,10 +45,13 @@ export function ChatTab({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [speakingKey, setSpeakingKey] = useState<string | null>(null);
   const [citation, setCitation] = useState<Citation | null>(null);
+  const [viewerTarget, setViewerTarget] = useState<ViewerTarget | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
-  // A citation belongs to the conversation it was opened in.
+  // A citation and its viewer belong to the conversation they were opened in.
   const panel = citation && citation.conversationId === conversationId ? citation : null;
+  const viewer = viewerTarget && viewerTarget.conversationId === conversationId ? viewerTarget : null;
+  const viewerDocumentId = viewer?.source.document_id ?? null;
 
   useEffect(() => {
     if (active) endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -60,14 +65,15 @@ export function ChatTab({
     [conversationId]
   );
 
+  // Esc closes the panel, unless the document viewer is open (it handles its own Esc).
   useEffect(() => {
-    if (!panel) return;
+    if (!panel || viewer) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setCitation(null);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [panel]);
+  }, [panel, viewer]);
 
   const handleCopy = useCallback((text: string, key: string) => {
     void navigator.clipboard.writeText(text);
@@ -104,6 +110,22 @@ export function ChatTab({
   const handleOpenSource = useCallback(
     (sources: Source[], sourceNumber: number) => setCitation({ conversationId, sources, number: sourceNumber }),
     [conversationId]
+  );
+
+  const handleViewDocument = useCallback(
+    (source: Source, sourceNumber: number) => setViewerTarget({ conversationId, source, number: sourceNumber }),
+    [conversationId]
+  );
+
+  const closeViewer = useCallback(() => setViewerTarget(null), []);
+
+  const handleEditFromViewer = useCallback(
+    (documentId: string) => {
+      setViewerTarget(null);
+      setCitation(null);
+      onOpenDocument(documentId);
+    },
+    [onOpenDocument]
   );
 
   const handleSubmit = () => {
@@ -184,13 +206,21 @@ export function ChatTab({
             sources={panel.sources}
             activeNumber={panel.number}
             onClose={() => setCitation(null)}
-            onOpenDocument={(documentId) => {
-              setCitation(null);
-              onOpenDocument(documentId);
-            }}
+            onViewDocument={handleViewDocument}
           />
         )}
       </AnimatePresence>
+
+      {viewer && viewerDocumentId && (
+        <DocumentViewer
+          key={`${viewerDocumentId}:${viewer.number}`}
+          documentId={viewerDocumentId}
+          source={viewer.source}
+          sourceNumber={viewer.number}
+          onClose={closeViewer}
+          onEdit={handleEditFromViewer}
+        />
+      )}
     </div>
   );
 }

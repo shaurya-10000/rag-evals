@@ -4,6 +4,7 @@ export type Source = {
   metadata: Record<string, unknown>;
   document_id?: string | null;
   document_title?: string | null;
+  document_available?: boolean | null;
 };
 
 export type ChatMessage = {

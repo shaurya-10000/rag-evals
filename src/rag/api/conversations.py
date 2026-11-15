@@ -1,6 +1,7 @@
 import logging
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -18,7 +19,7 @@ from rag.api.schemas import (
 from rag.auth.utils import get_current_user
 from rag.chat_repository import ConversationRepository, ImportedConversation, ImportedMessage
 from rag.db import get_db
-from rag.db_models import Conversation, Message, User
+from rag.db_models import Chunk, Conversation, Document, Message, User
 
 logger = logging.getLogger("rag.api.conversations")
 router = APIRouter()
@@ -34,12 +35,87 @@ def _conversation_out(conversation: Conversation) -> ConversationOut:
     )
 
 
-def _message_out(message: Message) -> MessageOut:
+def _as_uuid(value: object) -> uuid.UUID | None:
+    if not value:
+        return None
+    try:
+        return uuid.UUID(str(value))
+    except ValueError:
+        return None
+
+
+def _resolve_documents(
+    db: Session, user_id: uuid.UUID, messages: list[Message]
+) -> tuple[dict[uuid.UUID, uuid.UUID], dict[uuid.UUID, str]]:
+    """Look up live document info for saved citations. Always scoped to the current user.
+
+    Returns (chunk_id -> document_id for old citations that lack a document id,
+    document_id -> current title for every document that still exists).
+    """
+    chunk_ids: set[uuid.UUID] = set()
+    doc_ids: set[uuid.UUID] = set()
+    for message in messages:
+        for source in message.sources or []:
+            known_doc = _as_uuid(source.get("document_id"))
+            if known_doc is not None:
+                doc_ids.add(known_doc)
+                continue
+            legacy_chunk = _as_uuid(source.get("id"))
+            if legacy_chunk is not None:
+                chunk_ids.add(legacy_chunk)
+
+    chunk_to_doc: dict[uuid.UUID, uuid.UUID] = {}
+    if chunk_ids:
+        chunk_rows = (
+            db.query(Chunk.id, Chunk.document_id)
+            .join(Document, Document.id == Chunk.document_id)
+            .filter(Chunk.id.in_(chunk_ids), Document.user_id == user_id)
+            .all()
+        )
+        chunk_to_doc = {row[0]: row[1] for row in chunk_rows}
+        doc_ids.update(chunk_to_doc.values())
+
+    titles: dict[uuid.UUID, str] = {}
+    if doc_ids:
+        doc_rows = (
+            db.query(Document.id, Document.title)
+            .filter(Document.id.in_(doc_ids), Document.user_id == user_id)
+            .all()
+        )
+        titles = {row[0]: row[1] for row in doc_rows}
+    return chunk_to_doc, titles
+
+
+def _enrich_source(
+    source: dict[str, Any],
+    chunk_to_doc: dict[uuid.UUID, uuid.UUID],
+    titles: dict[uuid.UUID, str],
+) -> dict[str, Any]:
+    enriched = dict(source)
+    doc_id = _as_uuid(source.get("document_id"))
+    if doc_id is None:
+        chunk_id = _as_uuid(source.get("id"))
+        if chunk_id is not None:
+            doc_id = chunk_to_doc.get(chunk_id)
+
+    title = titles.get(doc_id) if doc_id is not None else None
+    enriched["document_id"] = str(doc_id) if doc_id is not None else None
+    enriched["document_available"] = title is not None
+    if title is not None:
+        enriched["document_title"] = title
+    return enriched
+
+
+def _message_out(
+    message: Message,
+    chunk_to_doc: dict[uuid.UUID, uuid.UUID],
+    titles: dict[uuid.UUID, str],
+) -> MessageOut:
     return MessageOut(
         id=message.id,
         role=message.role,
         content=message.content,
-        sources=list(message.sources or []),
+        sources=[_enrich_source(s, chunk_to_doc, titles) for s in (message.sources or [])],
         created_at=message.created_at,
     )
 
@@ -112,9 +188,11 @@ def get_conversation(
     conversation = repo.get(current_user.id, conversation_id)
     if conversation is None:
         raise _not_found()
+    messages = list(conversation.messages)
+    chunk_to_doc, titles = _resolve_documents(db, current_user.id, messages)
     return ConversationDetail(
         **_conversation_out(conversation).model_dump(),
-        messages=[_message_out(m) for m in conversation.messages],
+        messages=[_message_out(m, chunk_to_doc, titles) for m in messages],
     )
 
 
