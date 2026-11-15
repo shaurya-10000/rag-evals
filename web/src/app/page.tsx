@@ -145,7 +145,20 @@ export default function Home() {
     }
 
     window.speechSynthesis.cancel(); // Stop any current speech
-    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Clean markdown symbols for smoother speech
+    const cleanText = text.replace(/[#*`_~]/g, '');
+    
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    
+    // Load the user's selected voice from localStorage
+    const savedVoiceName = localStorage.getItem('rag-evals-voice');
+    if (savedVoiceName) {
+      const voices = window.speechSynthesis.getVoices();
+      const selectedVoice = voices.find(v => v.name === savedVoiceName);
+      if (selectedVoice) utterance.voice = selectedVoice;
+    }
+    
     utterance.onend = () => setSpeakingIndex(null);
     utterance.onerror = () => setSpeakingIndex(null);
     setSpeakingIndex(index);
@@ -329,10 +342,10 @@ export default function Home() {
                   <div 
                     key={chat.id}
                     onClick={() => selectChat(chat.id)}
-                    className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${activeChatId === chat.id ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'hover:bg-neutral-100 dark:hover:bg-white/[0.04] text-neutral-700 dark:text-neutral-300'}`}
+                    className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${activeChatId === chat.id ? 'bg-accent-50 dark:bg-accent-500/10 text-emerald-700 dark:text-emerald-300' : 'hover:bg-neutral-100 dark:hover:bg-white/[0.04] text-neutral-700 dark:text-neutral-300'}`}
                   >
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {chat.pinned && <Pin className="w-3 h-3 text-emerald-500 shrink-0" />}
+                      {chat.pinned && <Pin className="w-3 h-3 text-accent-500 shrink-0" />}
                       {editingChatId === chat.id ? (
                         <input
                           type="text"
@@ -341,7 +354,7 @@ export default function Home() {
                           onBlur={() => saveRename(chat.id)}
                           onKeyDown={(e) => e.key === 'Enter' && saveRename(chat.id)}
                           autoFocus
-                          className="w-full bg-transparent outline-none border-b border-emerald-500 text-sm"
+                          className="w-full bg-transparent outline-none border-b border-accent-500 text-sm"
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
@@ -387,7 +400,7 @@ export default function Home() {
                 <PanelLeftOpen className="w-5 h-5" />
               </button>
             )}
-            <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+            <div className="w-8 h-8 bg-gradient-to-br from-accent-500 to-accent-600 rounded-xl flex items-center justify-center shadow-lg shadow-accent-500/20">
               <Layers className="w-4 h-4 text-white" />
             </div>
             <div className="flex items-center gap-2">
@@ -418,9 +431,16 @@ export default function Home() {
                   {messages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center flex-1 text-center space-y-8 animate-in fade-in zoom-in-95 duration-500">
                       <div className="space-y-3">
-                        <div className="w-20 h-20 bg-gradient-to-br from-emerald-500/20 to-emerald-900/10 rounded-3xl flex items-center justify-center border border-emerald-500/20 mx-auto shadow-2xl shadow-emerald-500/10">
-                          <Sparkles className="w-10 h-10 text-emerald-500 dark:text-emerald-400" />
-                        </div>
+                        <div 
+  className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto shadow-2xl" 
+  style={{ 
+    background: 'linear-gradient(135deg, var(--accent-500) 0%, transparent 100%)',
+    border: '1px solid var(--accent-500)',
+    boxShadow: '0 0 30px -5px var(--accent-500)'
+  }}
+>
+  <Sparkles className="w-10 h-10" style={{ color: 'var(--accent-500)' }} />
+</div>
                         <h2 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">How can I help you today?</h2>
                         <p className="text-neutral-500 text-sm">Ask anything about your ingested documents.</p>
                       </div>
@@ -445,16 +465,16 @@ export default function Home() {
                         return (
                           <div key={i} className={`flex gap-4 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
                             {!isUser && (
-                              <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                                <Layers className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+                              <div className="w-8 h-8 rounded-full bg-accent-500/10 border border-accent-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                                <Layers className="w-4 h-4 text-accent-500 dark:text-emerald-400" />
                               </div>
                             )}
-                            <div className={`max-w-[90%] ${isUser ? 'bg-emerald-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 shadow-md' : 'bg-transparent text-neutral-800 dark:text-neutral-200'}`}>
+                            <div className={`max-w-[90%] ${isUser ? 'bg-accent-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 shadow-md' : 'bg-transparent text-neutral-800 dark:text-neutral-200'}`}>
                               {!isUser ? (
                                 <div className="group relative">
                                   <div className="prose dark:prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-neutral-100 dark:prose-pre:bg-neutral-950 prose-pre:border prose-pre:border-neutral-200 dark:prose-pre:border-neutral-800 prose-table:w-full prose-table:border-collapse">
                                     {isThinking ? (
-                                      <div className="flex items-center gap-2 h-6 text-sm text-emerald-500 dark:text-emerald-400 font-medium">
+                                      <div className="flex items-center gap-2 h-6 text-sm text-accent-500 dark:text-emerald-400 font-medium">
                                         <Loader2 className="w-4 h-4 animate-spin" />
                                         <span className="animate-pulse">Searching knowledge base...</span>
                                       </div>
@@ -471,12 +491,12 @@ export default function Home() {
                                             thead: ({...props}) => <thead className="bg-neutral-100 dark:bg-neutral-900/50" {...props} />,
                                             th: ({...props}) => <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider" {...props} />,
                                             td: ({...props}) => <td className="px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300 border-t border-neutral-200 dark:border-neutral-800" {...props} />,
-                                            a: ({...props}) => <a className="text-emerald-600 dark:text-emerald-400 hover:underline font-medium" target="_blank" rel="noopener noreferrer" {...props} />
+                                            a: ({...props}) => <a className="text-accent-600 dark:text-emerald-400 hover:underline font-medium" target="_blank" rel="noopener noreferrer" {...props} />
                                           }}
                                         >
                                           {msg.content}
                                         </ReactMarkdown>
-                                        {msg.isStreaming && <span className="inline-block w-1.5 h-4 ml-1 bg-emerald-500 dark:bg-emerald-400 animate-pulse align-middle" />}
+                                        {msg.isStreaming && <span className="inline-block w-1.5 h-4 ml-1 bg-accent-500 dark:bg-emerald-400 animate-pulse align-middle" />}
                                       </>
                                     )}
                                   </div>
@@ -485,10 +505,10 @@ export default function Home() {
                                   {!msg.isStreaming && msg.content && (
                                     <div className="mt-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                                       <button onClick={() => handleCopy(msg.content, i)} className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 rounded-md transition-colors" title="Copy text">
-                                        {copiedIndex === i ? <><Check className="w-3.5 h-3.5 text-emerald-500" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+                                        {copiedIndex === i ? <><Check className="w-3.5 h-3.5 text-accent-500" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
                                       </button>
                                       <button onClick={() => handleSpeak(msg.content, i)} className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 rounded-md transition-colors" title="Read aloud">
-                                        {speakingIndex === i ? <><Square className="w-3.5 h-3.5 fill-current text-emerald-500" /> Stop</> : <><Volume2 className="w-3.5 h-3.5" /> Read aloud</>}
+                                        {speakingIndex === i ? <><Square className="w-3.5 h-3.5 fill-current text-accent-500" /> Stop</> : <><Volume2 className="w-3.5 h-3.5" /> Read aloud</>}
                                       </button>
                                     </div>
                                   )}
@@ -496,14 +516,14 @@ export default function Home() {
                                   {msg.chunks && msg.chunks.length > 0 && (
                                     <div className="mt-4 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-neutral-100 dark:bg-neutral-900/30">
                                       <button onClick={() => toggleSource(i)} className="w-full flex items-center justify-between px-4 py-2.5 bg-neutral-50 dark:bg-neutral-900/50 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-                                        <span className="flex items-center gap-2"><Database className="w-3.5 h-3.5 text-emerald-500" />{msg.chunks.length} Sources Retrieved</span>
+                                        <span className="flex items-center gap-2"><Database className="w-3.5 h-3.5 text-accent-500" />{msg.chunks.length} Sources Retrieved</span>
                                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                                       </button>
                                       {isExpanded && (
                                         <div className="p-3 space-y-2 border-t border-neutral-200 dark:border-neutral-800/50 bg-white dark:bg-neutral-950/50">
                                           {msg.chunks.map((chunk, j) => (
                                             <div key={j} className="text-xs bg-neutral-50 dark:bg-neutral-900 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">
-                                              <span className="inline-block px-1.5 py-0.5 bg-neutral-200 dark:bg-neutral-800 text-emerald-600 dark:text-emerald-400 rounded text-[10px] font-bold mb-2">Chunk {j + 1}</span>
+                                              <span className="inline-block px-1.5 py-0.5 bg-neutral-200 dark:bg-neutral-800 text-accent-600 dark:text-emerald-400 rounded text-[10px] font-bold mb-2">Chunk {j + 1}</span>
                                               <p className="whitespace-pre-wrap">{chunk.content}</p>
                                             </div>
                                           ))}
@@ -527,7 +547,7 @@ export default function Home() {
               </div>
               <footer className="p-4 border-t border-neutral-200 dark:border-neutral-800/50 bg-white dark:bg-neutral-950 shrink-0">
                 <div className="w-full max-w-4xl mx-auto">
-                  <form onSubmit={sendMessage} className="relative flex items-end gap-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-emerald-500/50 focus-within:border-emerald-500 transition-all shadow-sm">
+                  <form onSubmit={sendMessage} className="relative flex items-end gap-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-accent-500/50 focus-within:border-accent-500 transition-all shadow-sm">
                     <textarea 
                       value={input} 
                       onChange={(e) => setInput(e.target.value)} 
@@ -542,7 +562,7 @@ export default function Home() {
                       className="w-full max-h-32 bg-transparent text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-500 px-3 py-2.5 resize-none focus:outline-none" 
                       style={{ minHeight: '44px' }}
                     />
-                    <button type="submit" disabled={isLoading || !input.trim()} className="p-2.5 mb-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-all disabled:opacity-50 disabled:bg-neutral-200 dark:disabled:bg-neutral-800 disabled:text-neutral-500 shrink-0 shadow-sm"><Send className="w-4 h-4" /></button>
+                    <button type="submit" disabled={isLoading || !input.trim()} className="p-2.5 mb-0.5 text-white rounded-xl transition-all disabled:opacity-50 disabled:bg-neutral-200 dark:disabled:bg-neutral-800 disabled:text-neutral-500 shrink-0 shadow-sm" style={{ backgroundColor: 'var(--accent-600)' }}><Send className="w-4 h-4" /></button>
                   </form>
                   <p className="text-center text-[10px] text-neutral-500 mt-2">RAG Evals can make mistakes. Consider verifying important information.</p>
                 </div>
@@ -564,7 +584,7 @@ export default function Home() {
                   <form onSubmit={handleIngest} className="flex flex-col gap-5">
                     <div>
                       <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-2">Document Title</label>
-                      <input type="text" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} placeholder="e.g., Company Handbook" className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl py-3 px-4 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all" />
+                      <input type="text" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} placeholder="e.g., Company Handbook" className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl py-3 px-4 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500 transition-all" />
                     </div>
                     {ingestMode === 'text' ? (
                       <div>
@@ -572,16 +592,16 @@ export default function Home() {
                           <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Text Content</label>
                           <span className={`text-[10px] font-mono ${docText.length > 0 && docText.length < 10 ? 'text-red-500' : 'text-neutral-500'}`}>{docText.length}/10 chars</span>
                         </div>
-                        <textarea value={docText} onChange={(e) => setDocText(e.target.value)} placeholder="Paste your text here..." className="w-full h-48 bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl py-3 px-4 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 resize-none transition-all" />
+                        <textarea value={docText} onChange={(e) => setDocText(e.target.value)} placeholder="Paste your text here..." className="w-full h-48 bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl py-3 px-4 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500 resize-none transition-all" />
                       </div>
                     ) : (
                       <div>
                         <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-2">Upload File</label>
-                        <div className="h-48 border-2 border-dashed border-neutral-300 dark:border-neutral-800 hover:border-emerald-500/50 rounded-xl flex flex-col items-center justify-center p-6 cursor-pointer bg-neutral-50 dark:bg-neutral-950/50 transition-all group" onClick={() => fileInputRef.current?.click()}>
+                        <div className="h-48 border-2 border-dashed border-neutral-300 dark:border-neutral-800 hover:border-accent-500/50 rounded-xl flex flex-col items-center justify-center p-6 cursor-pointer bg-neutral-50 dark:bg-neutral-950/50 transition-all group" onClick={() => fileInputRef.current?.click()}>
                           <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp" className="hidden" />
                           {file ? (
                             <div className="text-center">
-                              <div className="w-12 h-12 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-3"><FileText className="w-6 h-6 text-emerald-500 dark:text-emerald-400" /></div>
+                              <div className="w-12 h-12 bg-accent-500/10 rounded-full flex items-center justify-center mx-auto mb-3"><FileText className="w-6 h-6 text-accent-500 dark:text-emerald-400" /></div>
                               <p className="text-sm font-medium text-neutral-900 dark:text-neutral-200">{file.name}</p>
                               <p className="text-xs text-neutral-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
                             </div>
@@ -595,11 +615,11 @@ export default function Home() {
                         </div>
                       </div>
                     )}
-                    <button type="submit" disabled={isIngesting || !docTitle.trim() || (ingestMode === 'text' ? docText.trim().length < 10 : !file)} className="flex items-center justify-center gap-2 w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-900/20 mt-2">
+                    <button type="submit" disabled={isIngesting || !docTitle.trim() || (ingestMode === 'text' ? docText.trim().length < 10 : !file)} className="flex items-center justify-center gap-2 w-full bg-accent-600 hover:bg-accent-500 text-white py-3 rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-900/20 mt-2">
                       {isIngesting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
                       {isIngesting ? 'Ingesting...' : 'Ingest Document'}
                     </button>
-                    {ingestStatus && (<div className={`p-3 rounded-lg text-xs text-center font-medium ${ingestStatus.includes('Error') ? 'bg-red-500/10 text-red-500 dark:text-red-400 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'}`}>{ingestStatus}</div>)}
+                    {ingestStatus && (<div className={`p-3 rounded-lg text-xs text-center font-medium ${ingestStatus.includes('Error') ? 'bg-red-500/10 text-red-500 dark:text-red-400 border border-red-500/20' : 'bg-accent-500/10 text-accent-600 dark:text-emerald-400 border border-accent-500/20'}`}>{ingestStatus}</div>)}
                   </form>
                 </div>
               </div>
@@ -610,6 +630,13 @@ export default function Home() {
     </div>
   );
 }
+
+
+
+
+
+
+
 
 
 
