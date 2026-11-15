@@ -405,10 +405,16 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-2 md:gap-4">
             <nav className="flex items-center p-1 md:p-1.5 bg-neutral-100 dark:bg-neutral-900/80 backdrop-blur-md rounded-full border border-neutral-200 dark:border-neutral-800 shadow-inner">
-              <button onClick={() => setActiveTab('chat')} className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full transition-all duration-300 ease-out ${activeTab === 'chat' ? (isDark ? 'bg-neutral-800 text-white ring-1 ring-white/10 shadow-sm' : 'bg-white text-black ring-1 ring-black/5 shadow-sm') : (isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-800/50' : 'text-neutral-500 hover:text-black hover:bg-neutral-200/50')}`}>
+              <button 
+                onClick={() => setActiveTab('chat')} 
+                className={activeTab === 'chat' ? 'flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm' : 'flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full text-neutral-500 dark:text-neutral-400 hover:text-neutral-900'}
+              >
                 <MessageSquare className="w-3.5 h-3.5 md:w-4 md:h-4" /> <span className="hidden xs:inline">Chat</span>
               </button>
-              <button onClick={() => setActiveTab('ingest')} className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full transition-all duration-300 ease-out ${activeTab === 'ingest' ? (isDark ? 'bg-neutral-800 text-white ring-1 ring-white/10 shadow-sm' : 'bg-white text-black ring-1 ring-black/5 shadow-sm') : (isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-800/50' : 'text-neutral-500 hover:text-black hover:bg-neutral-200/50')}`}>
+              <button 
+                onClick={() => setActiveTab('ingest')} 
+                className={activeTab === 'ingest' ? 'flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm' : 'flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full text-neutral-500 dark:text-neutral-400 hover:text-neutral-900'}
+              >
                 <Database className="w-3.5 h-3.5 md:w-4 md:h-4" /> <span className="hidden xs:inline">Knowledge Base</span>
               </button>
             </nav>
@@ -616,6 +622,9 @@ export default function Home() {
     </div>
   );
 }
+
+
+
 
 
 
