@@ -183,12 +183,14 @@ async def ingest(
 
     try:
         repo = DocumentRepository(db=db, embedder=embedder)
-        doc = repo.ingest_document(user_id=current_user.id, title=title, text=text, source_url=source)
+        doc = repo.ingest_document(
+            user_id=current_user.id, title=title, text=text, source_url=source
+        )
         logger.info(f"[{request_id}] Ingest done. doc_id={doc.id}")
         return IngestResponse(document_id=doc.id, status="ingested")
     except Exception as e:
         logger.error(f"[{request_id}] Ingest failed: {type(e).__name__} - {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Ingest error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Ingest error: {str(e)}") from e
 
 
 @app.post("/generate-title")
@@ -276,4 +278,3 @@ def query(
             "X-Accel-Buffering": "no",
         },
     )
-
