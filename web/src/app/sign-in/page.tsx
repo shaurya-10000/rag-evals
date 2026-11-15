@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Bot, Loader2, Mail, Lock } from 'lucide-react';
 
 export default function SignInPage() {
@@ -9,6 +10,7 @@ export default function SignInPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +25,7 @@ export default function SignInPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Login failed');
       
-      window.location.href = '/';
+      router.push('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
       setIsLoading(false);
@@ -71,5 +73,6 @@ export default function SignInPage() {
     </div>
   );
 }
+
 
 

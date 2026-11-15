@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { LogOut, User as UserIcon, Sun, Moon, Monitor, ChevronDown, Volume2 } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { useRouter } from 'next/navigation';
 
 // Helper to safely read localStorage without triggering hydration errors
 const subscribe = () => () => {};
@@ -16,6 +17,7 @@ export function UserMenu() {
   const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
+  const router = useRouter();
 
   // Use useSyncExternalStore to safely read from localStorage without cascading renders
   const accent = useSyncExternalStore(
@@ -94,7 +96,7 @@ export function UserMenu() {
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
-    window.location.href = '/sign-in';
+    router.push('/sign-in');
   };
 
   const handleAccentChange = (color: string) => {
@@ -193,3 +195,4 @@ export function UserMenu() {
     </div>
   );
 }
+

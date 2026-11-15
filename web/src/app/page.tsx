@@ -1,17 +1,22 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Layers, User, Database, UploadCloud, FileText, Type, Sparkles, MessageSquare, Copy, Check, Plus, Volume2, Square, ChevronDown, ChevronUp, Pin, Edit2, Trash2, MoreVertical, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Send, Loader2, Layers, User, Database, UploadCloud, FileText, Type, Sparkles, MessageSquare, Copy, Check, Plus, ChevronDown, ChevronUp, Pin, Edit2, Trash2, MoreVertical, PanelLeftClose, PanelLeftOpen, Volume2, Square } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserMenu } from '@/components/user-menu';
+import { useTheme } from 'next-themes';
 
 type Chunk = { id: string; content: string; metadata: Record<string, unknown> };
 type Message = { role: 'user' | 'assistant'; content: string; chunks?: Chunk[]; isStreaming?: boolean };
 type ChatSession = { id: string; title: string; messages: Message[]; pinned: boolean; createdAt: number };
 
 export default function Home() {
+  const { resolvedTheme } = useTheme();
+
+
+  const isDark = resolvedTheme === 'dark';
   const [activeTab, setActiveTab] = useState<'chat' | 'ingest'>('chat');
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -21,19 +26,8 @@ export default function Home() {
   const [expandedSources, setExpandedSources] = useState<Record<number, boolean>>({});
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
 
-  // Cleanup TTS on unmount
-  useEffect(() => {
-    return () => {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
-
   // Chat History State
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
-  // Lazy initialize from localStorage
   const [chats, setChats] = useState<ChatSession[]>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('rag-evals-chats');
@@ -43,7 +37,6 @@ export default function Home() {
     }
     return [];
   });
-
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -58,6 +51,15 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isIngesting, setIsIngesting] = useState(false);
   const [ingestStatus, setIngestStatus] = useState('');
+
+  // Cleanup TTS on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   // Save chats
   useEffect(() => {
@@ -98,10 +100,7 @@ export default function Home() {
 
   const deleteChat = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    // Remove the chat from the list
     setChats(prev => prev.filter(c => c.id !== id));
-    
-    // If the deleted chat was the currently active one, clear the screen
     if (activeChatId === id) {
       setActiveChatId(null);
       setMessages([]);
@@ -145,13 +144,9 @@ export default function Home() {
     }
 
     window.speechSynthesis.cancel(); // Stop any current speech
-    
-    // Clean markdown symbols for smoother speech
-    const cleanText = text.replace(/[#*`_~]/g, '');
-    
+    const cleanText = text.replace(/[#*`_~]/g, ''); // Strip markdown
     const utterance = new SpeechSynthesisUtterance(cleanText);
     
-    // Load the user's selected voice from localStorage
     const savedVoiceName = localStorage.getItem('rag-evals-voice');
     if (savedVoiceName) {
       const voices = window.speechSynthesis.getVoices();
@@ -164,6 +159,7 @@ export default function Home() {
     setSpeakingIndex(index);
     window.speechSynthesis.speak(utterance);
   };
+
   const toggleSource = (msgIndex: number) => setExpandedSources(prev => ({ ...prev, [msgIndex]: !prev[msgIndex] }));
 
   // Ingest Handlers
@@ -292,10 +288,11 @@ export default function Home() {
     } finally { setIsLoading(false); }
   };
 
-  const sortedChats = [...chats].sort((a, b) => (a.pinned === b.pinned ? b.createdAt - a.createdAt : a.pinned ? -1 : 1));
+  const visibleChats = chats.filter(c => c.messages.length > 0 || c.id === activeChatId);
+  const sortedChats = [...visibleChats].sort((a, b) => (a.pinned === b.pinned ? b.createdAt - a.createdAt : a.pinned ? -1 : 1));
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-neutral-50 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 font-sans transition-colors duration-300 relative">
+    <div className="flex h-[100dvh] w-full overflow-hidden bg-background text-foreground font-sans transition-colors duration-300 relative">
       
       {/* BACKDROP FOR MOBILE */}
       <AnimatePresence>
@@ -305,7 +302,7 @@ export default function Home() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm md:hidden"
           />
         )}
       </AnimatePresence>
@@ -319,20 +316,19 @@ export default function Home() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '-100%', opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed inset-y-3 left-3 z-[70] flex w-72 flex-col rounded-[2rem] border border-neutral-200 dark:border-white/[0.08] bg-white dark:bg-[#0a0a0a] shadow-2xl shadow-black/10 dark:shadow-black/80 overflow-hidden"
+            className="fixed inset-y-3 left-3 z-[70] flex w-72 flex-col rounded-[2rem] border border-neutral-200 dark:border-white/[0.08] bg-white dark:bg-[#0a0a0a] shadow-2xl overflow-hidden"
           >
             <div className="flex items-center justify-between p-4 pb-2">
               <span className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">Chats</span>
               <div className="flex items-center gap-1">
-                <button onClick={startNewChat} className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/[0.06] rounded-lg text-neutral-500 dark:text-neutral-400 transition-colors" title="New Chat">
+                <button onClick={startNewChat} className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/[0.06] rounded-lg transition-colors" style={{ color: isDark ? '#a3a3a3' : '#525252' }} title="New Chat">
                   <Plus className="w-4 h-4" />
                 </button>
-                <button onClick={() => setSidebarOpen(false)} className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/[0.06] rounded-lg text-neutral-500 dark:text-neutral-400 transition-colors" title="Close Sidebar">
+                <button onClick={() => setSidebarOpen(false)} className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/[0.06] rounded-lg transition-colors" style={{ color: isDark ? '#a3a3a3' : '#525252' }} title="Close Sidebar">
                   <PanelLeftClose className="w-4 h-4" />
                 </button>
               </div>
             </div>
-            
             
             <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin">
               {sortedChats.length === 0 ? (
@@ -342,7 +338,7 @@ export default function Home() {
                   <div 
                     key={chat.id}
                     onClick={() => selectChat(chat.id)}
-                    className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${activeChatId === chat.id ? 'bg-accent-50 dark:bg-accent-500/10 text-emerald-700 dark:text-emerald-300' : 'hover:bg-neutral-100 dark:hover:bg-white/[0.04] text-neutral-700 dark:text-neutral-300'}`}
+                    className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${activeChatId === chat.id ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300' : 'hover:bg-neutral-100 dark:hover:bg-white/[0.04] text-neutral-700 dark:text-neutral-200'}`}
                   >
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       {chat.pinned && <Pin className="w-3 h-3 text-accent-500 shrink-0" />}
@@ -354,7 +350,7 @@ export default function Home() {
                           onBlur={() => saveRename(chat.id)}
                           onKeyDown={(e) => e.key === 'Enter' && saveRename(chat.id)}
                           autoFocus
-                          className="w-full bg-transparent outline-none border-b border-accent-500 text-sm"
+                          className="w-full bg-transparent outline-none border-b border-accent-500 text-sm text-black dark:text-white"
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
@@ -385,38 +381,35 @@ export default function Home() {
                 ))
               )}
             </div>
-
-            
           </motion.aside>
         )}
       </AnimatePresence>
 
       {/* MAIN CONTENT */}
       <div className="flex flex-col h-full flex-1 overflow-hidden transition-all duration-300">
-        <header className="h-16 border-b border-neutral-200 dark:border-neutral-800/50 flex items-center justify-between px-6 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-xl z-20 shrink-0">
-          <div className="flex items-center gap-3">
+        <header className="h-16 border-b border-neutral-200 dark:border-neutral-800/50 flex items-center justify-between px-4 md:px-6 bg-background/80 backdrop-blur-xl z-20 shrink-0">
+          <div className="flex items-center gap-2 md:gap-3">
             {!sidebarOpen && (
               <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
                 <PanelLeftOpen className="w-5 h-5" />
               </button>
             )}
-            <div className="w-8 h-8 bg-gradient-to-br from-accent-500 to-accent-600 rounded-xl flex items-center justify-center shadow-lg shadow-accent-500/20">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg hidden sm:flex" style={{ background: 'linear-gradient(to bottom right, var(--accent-500), var(--accent-600))' }}>
               <Layers className="w-4 h-4 text-white" />
             </div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-neutral-900 to-neutral-600 dark:from-white dark:to-neutral-300 hidden sm:block">
+              <h1 className="text-sm md:text-base font-extrabold tracking-tight text-neutral-900 dark:text-white hidden sm:block">
                 RAG Evals
               </h1>
-              
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <nav className="flex items-center p-1.5 bg-neutral-100/80 dark:bg-neutral-900/80 backdrop-blur-md rounded-full border border-neutral-200 dark:border-neutral-800 shadow-inner">
-              <button onClick={() => setActiveTab('chat')} className={`flex items-center gap-2 px-6 py-2 text-sm font-medium rounded-full transition-all duration-300 ease-out ${activeTab === 'chat' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50'}`}>
-                <MessageSquare className="w-4 h-4" /> Chat
+          <div className="flex items-center gap-2 md:gap-4">
+            <nav className="flex items-center p-1 md:p-1.5 bg-neutral-100 dark:bg-neutral-900/80 backdrop-blur-md rounded-full border border-neutral-200 dark:border-neutral-800 shadow-inner">
+              <button onClick={() => setActiveTab('chat')} className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full transition-all duration-300 ease-out ${activeTab === 'chat' ? (isDark ? 'bg-neutral-800 text-white ring-1 ring-white/10 shadow-sm' : 'bg-white text-black ring-1 ring-black/5 shadow-sm') : (isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-800/50' : 'text-neutral-500 hover:text-black hover:bg-neutral-200/50')}`}>
+                <MessageSquare className="w-3.5 h-3.5 md:w-4 md:h-4" /> <span className="hidden xs:inline">Chat</span>
               </button>
-              <button onClick={() => setActiveTab('ingest')} className={`flex items-center gap-2 px-6 py-2 text-sm font-medium rounded-full transition-all duration-300 ease-out ${activeTab === 'ingest' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50'}`}>
-                <Database className="w-4 h-4" /> Knowledge Base
+              <button onClick={() => setActiveTab('ingest')} className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full transition-all duration-300 ease-out ${activeTab === 'ingest' ? (isDark ? 'bg-neutral-800 text-white ring-1 ring-white/10 shadow-sm' : 'bg-white text-black ring-1 ring-black/5 shadow-sm') : (isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-800/50' : 'text-neutral-500 hover:text-black hover:bg-neutral-200/50')}`}>
+                <Database className="w-3.5 h-3.5 md:w-4 md:h-4" /> <span className="hidden xs:inline">Knowledge Base</span>
               </button>
             </nav>
             <UserMenu />
@@ -427,54 +420,47 @@ export default function Home() {
           {activeTab === 'chat' && (
             <div className="flex-1 flex flex-col h-full animate-in fade-in duration-300">
               <div className="flex-1 overflow-y-auto w-full">
-                <div className="max-w-4xl mx-auto p-4 sm:p-8 min-h-full flex flex-col">
+                <div className="max-w-4xl mx-auto p-3 sm:p-6 md:p-8 min-h-full flex flex-col">
                   {messages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center flex-1 text-center space-y-8 animate-in fade-in zoom-in-95 duration-500">
-                      <div className="space-y-3">
-                        <div 
-  className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto shadow-2xl" 
-  style={{ 
-    background: 'linear-gradient(135deg, var(--accent-500) 0%, transparent 100%)',
-    border: '1px solid var(--accent-500)',
-    boxShadow: '0 0 30px -5px var(--accent-500)'
-  }}
->
-  <Sparkles className="w-10 h-10" style={{ color: 'var(--accent-500)' }} />
-</div>
-                        <h2 className="text-3xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">How can I help you today?</h2>
-                        <p className="text-neutral-500 text-sm">Ask anything about your ingested documents.</p>
+                    <div className="flex flex-col items-center justify-center flex-1 text-center space-y-6 md:space-y-8 animate-in fade-in zoom-in-95 duration-500 mt-10 md:mt-0">
+                      <div className="space-y-2 md:space-y-3">
+                        <div className="w-16 h-16 md:w-20 md:h-20 rounded-3xl flex items-center justify-center mx-auto shadow-2xl" style={{ background: 'linear-gradient(135deg, var(--accent-500) 0%, transparent 100%)', border: '1px solid var(--accent-500)', boxShadow: '0 0 30px -5px var(--accent-500)' }}>
+                          <Sparkles className="w-8 h-8 md:w-10 md:h-10" style={{ color: 'var(--accent-500)' }} />
+                        </div>
+                        <h2 className="text-2xl md:text-3xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight mt-4">How can I help you today?</h2>
+                        <p className="text-neutral-500 text-xs md:text-sm">Ask anything about your ingested documents.</p>
                       </div>
                       
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
-                        <button onClick={() => setInput("Summarize the key points of my documents.")} className="p-4 bg-white dark:bg-neutral-900/50 hover:bg-neutral-50 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 rounded-xl text-left transition-all group shadow-sm">
-                          <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 group-hover:text-neutral-900 dark:group-hover:text-white">Summarize documents</p>
-                          <p className="text-xs text-neutral-500 mt-1">Get a quick TL;DR</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3 w-full max-w-2xl px-2">
+                        <button onClick={() => setInput("Summarize the key points of my documents.")} className="p-3 md:p-4 bg-white dark:bg-neutral-900/50 hover:bg-neutral-50 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 rounded-xl text-left transition-all group shadow-sm">
+                          <p className="text-xs md:text-sm font-medium text-neutral-900 dark:text-neutral-200 group-hover:text-black dark:group-hover:text-white">Summarize documents</p>
+                          <p className="text-[10px] md:text-xs text-neutral-500 dark:text-neutral-400 mt-1">Get a quick TL;DR</p>
                         </button>
-                        <button onClick={() => setInput("What are the main policies mentioned?")} className="p-4 bg-white dark:bg-neutral-900/50 hover:bg-neutral-50 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 rounded-xl text-left transition-all group shadow-sm">
-                          <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 group-hover:text-neutral-900 dark:group-hover:text-white">Find specific policies</p>
-                          <p className="text-xs text-neutral-500 mt-1">Extract rules and guidelines</p>
+                        <button onClick={() => setInput("What are the main policies mentioned?")} className="p-3 md:p-4 bg-white dark:bg-neutral-900/50 hover:bg-neutral-50 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 rounded-xl text-left transition-all group shadow-sm">
+                          <p className="text-xs md:text-sm font-medium text-neutral-900 dark:text-neutral-200 group-hover:text-black dark:group-hover:text-white">Find specific policies</p>
+                          <p className="text-[10px] md:text-xs text-neutral-500 dark:text-neutral-400 mt-1">Extract rules and guidelines</p>
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-6">
+                    <div className="space-y-4 md:space-y-6">
                       {messages.map((msg, i) => {
                         const isUser = msg.role === 'user';
                         const isThinking = !isUser && msg.content === '' && msg.isStreaming;
                         const isExpanded = expandedSources[i];
                         return (
-                          <div key={i} className={`flex gap-4 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                          <div key={i} className={`flex gap-2 md:gap-4 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
                             {!isUser && (
-                              <div className="w-8 h-8 rounded-full bg-accent-500/10 border border-accent-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                                <Layers className="w-4 h-4 text-accent-500 dark:text-emerald-400" />
+                              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-accent-500/10 border border-accent-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                                <Layers className="w-3 h-3 md:w-4 md:h-4 text-accent-500" />
                               </div>
                             )}
-                            <div className={`max-w-[90%] ${isUser ? 'bg-accent-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 shadow-md' : 'bg-transparent text-neutral-800 dark:text-neutral-200'}`}>
+                            <div className={`max-w-[85%] md:max-w-[85%] ${isUser ? 'bg-accent-600 text-white rounded-2xl rounded-tr-sm px-4 py-2 md:px-5 md:py-3 shadow-md' : 'bg-transparent text-neutral-800 dark:text-neutral-200'}`}>
                               {!isUser ? (
                                 <div className="group relative">
                                   <div className="prose dark:prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-neutral-100 dark:prose-pre:bg-neutral-950 prose-pre:border prose-pre:border-neutral-200 dark:prose-pre:border-neutral-800 prose-table:w-full prose-table:border-collapse">
                                     {isThinking ? (
-                                      <div className="flex items-center gap-2 h-6 text-sm text-accent-500 dark:text-emerald-400 font-medium">
+                                      <div className="flex items-center gap-2 h-6 text-sm text-accent-500 font-medium">
                                         <Loader2 className="w-4 h-4 animate-spin" />
                                         <span className="animate-pulse">Searching knowledge base...</span>
                                       </div>
@@ -484,30 +470,30 @@ export default function Home() {
                                           remarkPlugins={[remarkGfm]}
                                           components={{
                                             table: ({...props}) => (
-                                              <div className="overflow-x-auto my-6 rounded-lg border border-neutral-200 dark:border-neutral-800">
+                                              <div className="overflow-x-auto my-4 md:my-6 rounded-lg border border-neutral-200 dark:border-neutral-800">
                                                 <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-800" {...props} />
                                               </div>
                                             ),
                                             thead: ({...props}) => <thead className="bg-neutral-100 dark:bg-neutral-900/50" {...props} />,
-                                            th: ({...props}) => <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider" {...props} />,
-                                            td: ({...props}) => <td className="px-4 py-3 text-sm text-neutral-700 dark:text-neutral-300 border-t border-neutral-200 dark:border-neutral-800" {...props} />,
-                                            a: ({...props}) => <a className="text-accent-600 dark:text-emerald-400 hover:underline font-medium" target="_blank" rel="noopener noreferrer" {...props} />
+                                            th: ({...props}) => <th className="px-2 md:px-4 py-2 md:py-3 text-left text-[10px] md:text-xs font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider" {...props} />,
+                                            td: ({...props}) => <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-neutral-700 dark:text-neutral-300 border-t border-neutral-200 dark:border-neutral-800" {...props} />,
+                                            a: ({...props}) => <a className="text-accent-600 hover:underline font-medium" target="_blank" rel="noopener noreferrer" {...props} />
                                           }}
                                         >
                                           {msg.content}
                                         </ReactMarkdown>
-                                        {msg.isStreaming && <span className="inline-block w-1.5 h-4 ml-1 bg-accent-500 dark:bg-emerald-400 animate-pulse align-middle" />}
+                                        {msg.isStreaming && <span className="inline-block w-1.5 h-4 ml-1 bg-accent-500 animate-pulse align-middle" />}
                                       </>
                                     )}
                                   </div>
                                   
-                                  {/* Action Bar at the bottom */}
+                                  {/* Action Bar */}
                                   {!msg.isStreaming && msg.content && (
-                                    <div className="mt-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                      <button onClick={() => handleCopy(msg.content, i)} className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 rounded-md transition-colors" title="Copy text">
+                                    <div className="mt-2 flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
+                                      <button onClick={() => handleCopy(msg.content, i)} className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] md:text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 rounded-md transition-colors" title="Copy text">
                                         {copiedIndex === i ? <><Check className="w-3.5 h-3.5 text-accent-500" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
                                       </button>
-                                      <button onClick={() => handleSpeak(msg.content, i)} className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 rounded-md transition-colors" title="Read aloud">
+                                      <button onClick={() => handleSpeak(msg.content, i)} className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] md:text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 rounded-md transition-colors" title="Read aloud">
                                         {speakingIndex === i ? <><Square className="w-3.5 h-3.5 fill-current text-accent-500" /> Stop</> : <><Volume2 className="w-3.5 h-3.5" /> Read aloud</>}
                                       </button>
                                     </div>
@@ -515,15 +501,15 @@ export default function Home() {
                                   
                                   {msg.chunks && msg.chunks.length > 0 && (
                                     <div className="mt-4 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-neutral-100 dark:bg-neutral-900/30">
-                                      <button onClick={() => toggleSource(i)} className="w-full flex items-center justify-between px-4 py-2.5 bg-neutral-50 dark:bg-neutral-900/50 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                                      <button onClick={() => toggleSource(i)} className="w-full flex items-center justify-between px-3 md:px-4 py-2 md:py-2.5 bg-neutral-50 dark:bg-neutral-900/50 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors text-[10px] md:text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                                         <span className="flex items-center gap-2"><Database className="w-3.5 h-3.5 text-accent-500" />{msg.chunks.length} Sources Retrieved</span>
                                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                                       </button>
                                       {isExpanded && (
-                                        <div className="p-3 space-y-2 border-t border-neutral-200 dark:border-neutral-800/50 bg-white dark:bg-neutral-950/50">
+                                        <div className="p-2 md:p-3 space-y-2 border-t border-neutral-200 dark:border-neutral-800/50 bg-white dark:bg-neutral-950/50">
                                           {msg.chunks.map((chunk, j) => (
-                                            <div key={j} className="text-xs bg-neutral-50 dark:bg-neutral-900 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">
-                                              <span className="inline-block px-1.5 py-0.5 bg-neutral-200 dark:bg-neutral-800 text-accent-600 dark:text-emerald-400 rounded text-[10px] font-bold mb-2">Chunk {j + 1}</span>
+                                            <div key={j} className="text-[10px] md:text-xs bg-neutral-50 dark:bg-neutral-900 p-2 md:p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">
+                                              <span className="inline-block px-1.5 py-0.5 bg-neutral-200 dark:bg-neutral-800 text-accent-600 rounded text-[9px] md:text-[10px] font-bold mb-2">Chunk {j + 1}</span>
                                               <p className="whitespace-pre-wrap">{chunk.content}</p>
                                             </div>
                                           ))}
@@ -533,10 +519,10 @@ export default function Home() {
                                   )}
                                 </div>
                               ) : (
-                                <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                                <p className="text-xs md:text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                               )}
                             </div>
-                            {isUser && (<div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center shrink-0 mt-0.5"><User className="w-5 h-5 text-neutral-600 dark:text-neutral-400" /></div>)}
+                            {isUser && (<div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center shrink-0 mt-0.5"><User className="w-3 h-3 md:w-5 md:h-5 text-neutral-600 dark:text-neutral-400" /></div>)}
                           </div>
                         );
                       })}
@@ -545,9 +531,9 @@ export default function Home() {
                   <div ref={messagesEndRef} className="h-4" />
                 </div>
               </div>
-              <footer className="p-4 border-t border-neutral-200 dark:border-neutral-800/50 bg-white dark:bg-neutral-950 shrink-0">
+              <footer className="p-2 md:p-4 border-t border-neutral-200 dark:border-neutral-800/50 bg-transparent shrink-0">
                 <div className="w-full max-w-4xl mx-auto">
-                  <form onSubmit={sendMessage} className="relative flex items-end gap-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-accent-500/50 focus-within:border-accent-500 transition-all shadow-sm">
+                  <form onSubmit={sendMessage} className="relative flex items-end gap-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-2xl p-1.5 md:p-2 focus-within:ring-2 focus-within:ring-accent-500/50 focus-within:border-accent-500 transition-all shadow-sm">
                     <textarea 
                       value={input} 
                       onChange={(e) => setInput(e.target.value)} 
@@ -559,67 +545,67 @@ export default function Home() {
                       }}
                       placeholder="Message RAG Evals..." 
                       rows={1}
-                      className="w-full max-h-32 bg-transparent text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-500 px-3 py-2.5 resize-none focus:outline-none" 
-                      style={{ minHeight: '44px' }}
+                      className="w-full max-h-32 bg-transparent text-xs md:text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-500 px-2 md:px-3 py-1.5 md:py-2.5 resize-none focus:outline-none" 
+                      style={{ minHeight: '36px', maxHeight: '120px' }}
                     />
-                    <button type="submit" disabled={isLoading || !input.trim()} className="p-2.5 mb-0.5 text-white rounded-xl transition-all disabled:opacity-50 disabled:bg-neutral-200 dark:disabled:bg-neutral-800 disabled:text-neutral-500 shrink-0 shadow-sm" style={{ backgroundColor: 'var(--accent-600)' }}><Send className="w-4 h-4" /></button>
+                    <button type="submit" disabled={isLoading || !input.trim()} className="p-1.5 md:p-2.5 mb-0.5 text-white rounded-xl transition-all disabled:opacity-50 disabled:bg-neutral-200 dark:disabled:bg-neutral-800 disabled:text-neutral-500 shrink-0 shadow-sm" style={{ backgroundColor: 'var(--accent-600)' }}><Send className="w-3.5 h-3.5 md:w-4 md:h-4" /></button>
                   </form>
-                  <p className="text-center text-[10px] text-neutral-500 mt-2">RAG Evals can make mistakes. Consider verifying important information.</p>
+                  <p className="text-center text-[9px] md:text-[10px] text-neutral-500 mt-1 md:mt-2">RAG Evals can make mistakes. Consider verifying important information.</p>
                 </div>
               </footer>
             </div>
           )}
           {activeTab === 'ingest' && (
-            <div className="flex-1 overflow-y-auto p-8 animate-in fade-in duration-300">
-              <div className="max-w-2xl mx-auto space-y-8">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 animate-in fade-in duration-300">
+              <div className="max-w-2xl mx-auto space-y-6 md:space-y-8">
                 <div>
-                  <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Knowledge Base</h2>
-                  <p className="text-sm text-neutral-500 mt-1">Upload documents or paste text to expand the AI&apos;s knowledge.</p>
+                  <h2 className="text-xl md:text-2xl font-bold text-neutral-900 dark:text-neutral-100">Knowledge Base</h2>
+                  <p className="text-xs md:text-sm text-neutral-500 mt-1">Upload documents or paste text to expand the AI&apos;s knowledge.</p>
                 </div>
-                <div className="bg-white dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-sm">
-                  <div className="flex items-center p-1.5 bg-neutral-100 dark:bg-neutral-950/80 rounded-full border border-neutral-200 dark:border-neutral-800 mb-6 shadow-inner">
-                    <button onClick={() => setIngestMode('text')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-full transition-all duration-300 ease-out ${ingestMode === 'text' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50'}`}><Type className="w-4 h-4" /> Paste Text</button>
-                    <button onClick={() => setIngestMode('file')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-full transition-all duration-300 ease-out ${ingestMode === 'file' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50'}`}><UploadCloud className="w-4 h-4" /> Upload Files</button>
+                <div className="bg-white dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 md:p-6 shadow-sm">
+                  <div className="flex items-center p-1 md:p-1.5 bg-neutral-100 dark:bg-neutral-950/80 rounded-full border border-neutral-200 dark:border-neutral-800 mb-4 md:mb-6 shadow-inner">
+                    <button onClick={() => setIngestMode('text')} className={`flex-1 flex items-center justify-center gap-1.5 md:gap-2 py-1.5 md:py-2.5 text-xs md:text-sm font-medium rounded-full transition-all duration-300 ease-out ${ingestMode === 'text' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50'}`}><Type className="w-3.5 h-3.5 md:w-4 md:h-4" /> Paste Text</button>
+                    <button onClick={() => setIngestMode('file')} className={`flex-1 flex items-center justify-center gap-1.5 md:gap-2 py-1.5 md:py-2.5 text-xs md:text-sm font-medium rounded-full transition-all duration-300 ease-out ${ingestMode === 'file' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50'}`}><UploadCloud className="w-3.5 h-3.5 md:w-4 md:h-4" /> Upload Files</button>
                   </div>
-                  <form onSubmit={handleIngest} className="flex flex-col gap-5">
+                  <form onSubmit={handleIngest} className="flex flex-col gap-4 md:gap-5">
                     <div>
-                      <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-2">Document Title</label>
-                      <input type="text" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} placeholder="e.g., Company Handbook" className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl py-3 px-4 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500 transition-all" />
+                      <label className="block text-[10px] md:text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5 md:mb-2">Document Title</label>
+                      <input type="text" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} placeholder="e.g., Company Handbook" className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl py-2 md:py-3 px-3 md:px-4 text-xs md:text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500 transition-all" />
                     </div>
                     {ingestMode === 'text' ? (
                       <div>
-                        <div className="flex justify-between items-end mb-2">
-                          <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Text Content</label>
-                          <span className={`text-[10px] font-mono ${docText.length > 0 && docText.length < 10 ? 'text-red-500' : 'text-neutral-500'}`}>{docText.length}/10 chars</span>
+                        <div className="flex justify-between items-end mb-1.5 md:mb-2">
+                          <label className="block text-[10px] md:text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Text Content</label>
+                          <span className={`text-[9px] md:text-[10px] font-mono ${docText.length > 0 && docText.length < 10 ? 'text-red-500' : 'text-neutral-500'}`}>{docText.length}/10 chars</span>
                         </div>
-                        <textarea value={docText} onChange={(e) => setDocText(e.target.value)} placeholder="Paste your text here..." className="w-full h-48 bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl py-3 px-4 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500 resize-none transition-all" />
+                        <textarea value={docText} onChange={(e) => setDocText(e.target.value)} placeholder="Paste your text here..." className="w-full h-32 md:h-48 bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl py-2 md:py-3 px-3 md:px-4 text-xs md:text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500 resize-none transition-all" />
                       </div>
                     ) : (
                       <div>
-                        <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-2">Upload File</label>
-                        <div className="h-48 border-2 border-dashed border-neutral-300 dark:border-neutral-800 hover:border-accent-500/50 rounded-xl flex flex-col items-center justify-center p-6 cursor-pointer bg-neutral-50 dark:bg-neutral-950/50 transition-all group" onClick={() => fileInputRef.current?.click()}>
+                        <label className="block text-[10px] md:text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5 md:mb-2">Upload File</label>
+                        <div className="h-32 md:h-48 border-2 border-dashed border-neutral-300 dark:border-neutral-800 hover:border-accent-500/50 rounded-xl flex flex-col items-center justify-center p-4 md:p-6 cursor-pointer bg-neutral-50 dark:bg-neutral-950/50 transition-all group" onClick={() => fileInputRef.current?.click()}>
                           <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp" className="hidden" />
                           {file ? (
                             <div className="text-center">
-                              <div className="w-12 h-12 bg-accent-500/10 rounded-full flex items-center justify-center mx-auto mb-3"><FileText className="w-6 h-6 text-accent-500 dark:text-emerald-400" /></div>
-                              <p className="text-sm font-medium text-neutral-900 dark:text-neutral-200">{file.name}</p>
-                              <p className="text-xs text-neutral-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
+                              <div className="w-10 h-10 md:w-12 md:h-12 bg-accent-500/10 rounded-full flex items-center justify-center mx-auto mb-2 md:mb-3"><FileText className="w-5 h-5 md:w-6 md:h-6 text-accent-500" /></div>
+                              <p className="text-xs md:text-sm font-medium text-neutral-900 dark:text-neutral-200">{file.name}</p>
+                              <p className="text-[10px] md:text-xs text-neutral-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
                             </div>
                           ) : (
                             <div className="text-center text-neutral-500 group-hover:text-neutral-700 dark:group-hover:text-neutral-400 transition-colors">
-                              <UploadCloud className="w-10 h-10 mx-auto mb-3 opacity-50 group-hover:opacity-100 transition-opacity" />
-                              <p className="text-sm font-medium">Click to select a file</p>
-                              <p className="text-xs mt-1 opacity-70">PDF, TXT, MD, PNG, JPG</p>
+                              <UploadCloud className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-2 md:mb-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+                              <p className="text-xs md:text-sm font-medium">Click to select a file</p>
+                              <p className="text-[10px] md:text-xs mt-1 opacity-70">PDF, TXT, MD, PNG, JPG</p>
                             </div>
                           )}
                         </div>
                       </div>
                     )}
-                    <button type="submit" disabled={isIngesting || !docTitle.trim() || (ingestMode === 'text' ? docText.trim().length < 10 : !file)} className="flex items-center justify-center gap-2 w-full bg-accent-600 hover:bg-accent-500 text-white py-3 rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-900/20 mt-2">
-                      {isIngesting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                    <button type="submit" disabled={isIngesting || !docTitle.trim() || (ingestMode === 'text' ? docText.trim().length < 10 : !file)} className="flex items-center justify-center gap-2 w-full text-white py-2 md:py-3 rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg mt-2 text-xs md:text-sm" style={{ backgroundColor: 'var(--accent-600)' }}>
+                      {isIngesting ? <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" /> : <Sparkles className="w-4 h-4 md:w-5 md:h-5" />}
                       {isIngesting ? 'Ingesting...' : 'Ingest Document'}
                     </button>
-                    {ingestStatus && (<div className={`p-3 rounded-lg text-xs text-center font-medium ${ingestStatus.includes('Error') ? 'bg-red-500/10 text-red-500 dark:text-red-400 border border-red-500/20' : 'bg-accent-500/10 text-accent-600 dark:text-emerald-400 border border-accent-500/20'}`}>{ingestStatus}</div>)}
+                    {ingestStatus && (<div className={`p-2 md:p-3 rounded-lg text-[10px] md:text-xs text-center font-medium ${ingestStatus.includes('Error') ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-accent-500/10 text-accent-600 border border-accent-500/20'}`}>{ingestStatus}</div>)}
                   </form>
                 </div>
               </div>
@@ -630,18 +616,6 @@ export default function Home() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

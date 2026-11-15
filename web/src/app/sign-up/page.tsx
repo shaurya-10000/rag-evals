@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Bot, Loader2, Mail, Lock, User } from 'lucide-react';
 
 export default function SignUpPage() {
@@ -10,6 +11,7 @@ export default function SignUpPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +25,7 @@ export default function SignUpPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Sign up failed');
-      window.location.href = '/';
+      router.push('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed');
       setIsLoading(false);
@@ -80,5 +82,6 @@ export default function SignUpPage() {
     </div>
   );
 }
+
 
 

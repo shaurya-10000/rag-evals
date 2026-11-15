@@ -1,7 +1,11 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-@theme {
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
   --color-accent-50: var(--accent-50);
   --color-accent-400: var(--accent-400);
   --color-accent-500: var(--accent-500);
