@@ -50,7 +50,7 @@ target-version = "py311"
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/rag/api/main.py" = ["B008"]
+"src/rag/api/*.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.11"

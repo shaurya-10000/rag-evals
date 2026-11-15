@@ -1,3 +1,4 @@
+import { getApiKey } from '../../../lib/server-env';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
@@ -5,7 +6,10 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
-    const apiKey = process.env.RAG_API_KEY || 'dev-secret-key-change-in-production';
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Server misconfigured: RAG_API_KEY is not set' }, { status: 500 });
+    }
     const cookieStore = await cookies();
     const accessToken = cookieStore.get('access_token')?.value || '';
 

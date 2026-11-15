@@ -21,9 +21,9 @@ class Reranker:
         if self._model is None:
             from fastembed.rerank.cross_encoder import TextCrossEncoder
 
-            # Use a strict fixed number of threads to prevent Windows thread contention
-            default_threads = str(min(4, os.cpu_count() or 1))
-            threads = int(os.getenv("RERANK_THREADS", default_threads))
+            # Cap ONNX threads (Windows / container CPU quotas); override: RERANK_THREADS
+            env_threads = os.getenv("RERANK_THREADS")
+            threads = int(env_threads) if env_threads else min(4, os.cpu_count() or 1)
 
             self._model = TextCrossEncoder(
                 model_name=self.model_name,
