@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Layers, User, Database, UploadCloud, FileText, Type, Sparkles, MessageSquare, Copy, Check, Plus, ChevronDown, ChevronUp, Pin, Edit2, Trash2, MoreVertical, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Send, Loader2, Layers, User, Database, UploadCloud, FileText, Type, Sparkles, MessageSquare, Copy, Check, Plus, Volume2, Square, ChevronDown, ChevronUp, Pin, Edit2, Trash2, MoreVertical, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,6 +19,16 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [expandedSources, setExpandedSources] = useState<Record<number, boolean>>({});
+  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
+
+  // Cleanup TTS on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   // Chat History State
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -125,6 +135,21 @@ export default function Home() {
     navigator.clipboard.writeText(text);
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
+  const handleSpeak = (text: string, index: number) => {
+    if (speakingIndex === index) {
+      window.speechSynthesis.cancel();
+      setSpeakingIndex(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel(); // Stop any current speech
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onend = () => setSpeakingIndex(null);
+    utterance.onerror = () => setSpeakingIndex(null);
+    setSpeakingIndex(index);
+    window.speechSynthesis.speak(utterance);
   };
   const toggleSource = (msgIndex: number) => setExpandedSources(prev => ({ ...prev, [msgIndex]: !prev[msgIndex] }));
 
@@ -427,13 +452,6 @@ export default function Home() {
                             <div className={`max-w-[90%] ${isUser ? 'bg-emerald-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 shadow-md' : 'bg-transparent text-neutral-800 dark:text-neutral-200'}`}>
                               {!isUser ? (
                                 <div className="group relative">
-                                  {!msg.isStreaming && msg.content && (
-                                    <div className="absolute -right-10 top-0 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-2">
-                                      <button onClick={() => handleCopy(msg.content, i)} className="p-1.5 text-neutral-500 hover:text-emerald-500 bg-white dark:bg-neutral-900 rounded-md border border-neutral-200 dark:border-neutral-800 transition-colors shadow-sm" title="Copy to clipboard">
-                                        {copiedIndex === i ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                                      </button>
-                                    </div>
-                                  )}
                                   <div className="prose dark:prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-neutral-100 dark:prose-pre:bg-neutral-950 prose-pre:border prose-pre:border-neutral-200 dark:prose-pre:border-neutral-800 prose-table:w-full prose-table:border-collapse">
                                     {isThinking ? (
                                       <div className="flex items-center gap-2 h-6 text-sm text-emerald-500 dark:text-emerald-400 font-medium">
@@ -462,6 +480,19 @@ export default function Home() {
                                       </>
                                     )}
                                   </div>
+                                  
+                                  {/* Action Bar at the bottom */}
+                                  {!msg.isStreaming && msg.content && (
+                                    <div className="mt-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                      <button onClick={() => handleCopy(msg.content, i)} className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 rounded-md transition-colors" title="Copy text">
+                                        {copiedIndex === i ? <><Check className="w-3.5 h-3.5 text-emerald-500" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+                                      </button>
+                                      <button onClick={() => handleSpeak(msg.content, i)} className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 rounded-md transition-colors" title="Read aloud">
+                                        {speakingIndex === i ? <><Square className="w-3.5 h-3.5 fill-current text-emerald-500" /> Stop</> : <><Volume2 className="w-3.5 h-3.5" /> Read aloud</>}
+                                      </button>
+                                    </div>
+                                  )}
+                                  
                                   {msg.chunks && msg.chunks.length > 0 && (
                                     <div className="mt-4 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-neutral-100 dark:bg-neutral-900/30">
                                       <button onClick={() => toggleSource(i)} className="w-full flex items-center justify-between px-4 py-2.5 bg-neutral-50 dark:bg-neutral-900/50 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
@@ -579,6 +610,9 @@ export default function Home() {
     </div>
   );
 }
+
+
+
 
 
 
