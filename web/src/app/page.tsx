@@ -1,71 +1,36 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Loader2, Layers, User, Database, UploadCloud, FileText, Type, Sparkles, MessageSquare, Copy, Check, Plus, ChevronDown, ChevronUp, Pin, Edit2, Trash2, MoreVertical, PanelLeftClose, PanelLeftOpen, Volume2, Square } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { motion, AnimatePresence } from 'framer-motion';
-import { UserMenu } from '@/components/user-menu';
+import { useCallback, useEffect, useState } from 'react';
+import { AppHeader, type AppTab } from '@/components/app-header';
+import { ChatSidebar } from '@/components/chat/chat-sidebar';
+import { ChatTab } from '@/components/chat/chat-tab';
 import { DocumentsTab, type CollectionInfo } from '@/components/documents-tab';
-import { useTheme } from 'next-themes';
-
-type Chunk = { id: string; content: string; metadata: Record<string, unknown> };
-type Message = { role: 'user' | 'assistant'; content: string; chunks?: Chunk[]; isStreaming?: boolean };
-type ChatSession = { id: string; title: string; messages: Message[]; pinned: boolean; createdAt: number };
+import { IngestTab } from '@/components/ingest/ingest-tab';
+import { useChat } from '@/hooks/use-chat';
+import { useConversations } from '@/hooks/use-conversations';
 
 export default function Home() {
-  const { resolvedTheme } = useTheme();
-
-
-  const isDark = resolvedTheme === 'dark';
-  const [activeTab, setActiveTab] = useState<'chat' | 'ingest' | 'documents'>('chat');
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-  const [expandedSources, setExpandedSources] = useState<Record<number, boolean>>({});
-  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
-
-  // Chat History State
+  const [activeTab, setActiveTab] = useState<AppTab>('chat');
+  const [focusDocumentId, setFocusDocumentId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [chats, setChats] = useState<ChatSession[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('rag-evals-chats');
-      if (saved) {
-        try { return JSON.parse(saved); } catch { return []; }
-      }
-    }
-    return [];
-  });
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
-  const [editingChatId, setEditingChatId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [chatMenuOpenId, setChatMenuOpenId] = useState<string | null>(null);
-  const sidebarRef = useRef<HTMLElement>(null);
-
-  // Ingest State
-  const [ingestMode, setIngestMode] = useState<'text' | 'file'>('text');
-  const [docTitle, setDocTitle] = useState('');
-  const [docText, setDocText] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isIngesting, setIsIngesting] = useState(false);
-  const [ingestStatus, setIngestStatus] = useState('');
-
-  // Collections (Documents tab, ingest target, chat scope)
   const [collections, setCollections] = useState<CollectionInfo[]>([]);
-  const [ingestCollectionId, setIngestCollectionId] = useState('');
   const [scopeCollectionId, setScopeCollectionId] = useState('');
+
+  // A scope pointing at a deleted collection quietly falls back to "All documents".
+  const activeScope = collections.some((c) => c.id === scopeCollectionId) ? scopeCollectionId : '';
+
+  const conversations = useConversations();
+  const chat = useChat({
+    scopeCollectionId: activeScope,
+    createConversation: conversations.create,
+    onFirstMessage: conversations.generateTitle,
+  });
 
   const refreshCollections = useCallback(async () => {
     try {
       const res = await fetch('/api/collections', { cache: 'no-store' });
       if (!res.ok) return;
-      const data: CollectionInfo[] = await res.json();
-      setCollections(data);
-      setIngestCollectionId((prev) => (data.some((c) => c.id === prev) ? prev : ''));
-      setScopeCollectionId((prev) => (data.some((c) => c.id === prev) ? prev : ''));
+      setCollections((await res.json()) as CollectionInfo[]);
     } catch {
       /* keep the previous list */
     }
@@ -86,617 +51,76 @@ export default function Home() {
     };
   }, []);
 
-  // Cleanup TTS on unmount
-  useEffect(() => {
-    return () => {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
+  const goToTab = (tab: AppTab, documentId: string | null = null) => {
+    setFocusDocumentId(documentId);
+    setActiveTab(tab);
+  };
 
-  // Save chats
-  useEffect(() => {
-    if (chats.length > 0 || localStorage.getItem('rag-evals-chats')) {
-      localStorage.setItem('rag-evals-chats', JSON.stringify(chats));
-    }
-  }, [chats]);
-
-  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  useEffect(() => { if (activeTab === 'chat') scrollToBottom(); }, [messages, activeTab]);
-
-  // Chat Handlers
-  const startNewChat = () => {
-    const newId = Date.now().toString();
-    const newChat: ChatSession = {
-      id: newId,
-      title: "New Chat",
-      messages: [],
-      pinned: false,
-      createdAt: Date.now()
-    };
-    
-    setChats(prev => [newChat, ...prev]);
-    setActiveChatId(newId);
-    setMessages([]);
-    setInput('');
-    setActiveTab('chat');
+  const handleNewChat = () => {
+    chat.startNewChat();
+    goToTab('chat');
     setSidebarOpen(false);
   };
 
-  const selectChat = (id: string) => {
-    setActiveChatId(id);
-    const chat = chats.find(c => c.id === id);
-    if (chat) setMessages(chat.messages);
-    setActiveTab('chat');
+  const handleSelectChat = (id: string) => {
+    void chat.selectConversation(id);
+    goToTab('chat');
     setSidebarOpen(false);
   };
 
-  const deleteChat = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setChats(prev => prev.filter(c => c.id !== id));
-    if (activeChatId === id) {
-      setActiveChatId(null);
-      setMessages([]);
-      setInput('');
-      setActiveTab('chat');
-    }
-    setChatMenuOpenId(null);
+  const handleDeleteChat = async (id: string) => {
+    if (await conversations.remove(id)) chat.discardConversation(id);
   };
-
-  const togglePin = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setChats(prev => prev.map(c => c.id === id ? { ...c, pinned: !c.pinned } : c));
-    setChatMenuOpenId(null);
-  };
-
-  const startRename = (id: string, currentTitle: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingChatId(id);
-    setEditTitle(currentTitle);
-    setChatMenuOpenId(null);
-  };
-
-  const saveRename = (id: string) => {
-    if (editTitle.trim()) {
-      setChats(prev => prev.map(c => c.id === id ? { ...c, title: editTitle.trim() } : c));
-    }
-    setEditingChatId(null);
-  };
-
-  const handleCopy = (text: string, index: number) => {
-    navigator.clipboard.writeText(text);
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
-  };
-
-  const handleSpeak = (text: string, index: number) => {
-    if (speakingIndex === index) {
-      window.speechSynthesis.cancel();
-      setSpeakingIndex(null);
-      return;
-    }
-
-    window.speechSynthesis.cancel(); // Stop any current speech
-    const cleanText = text.replace(/[#*`_~]/g, ''); // Strip markdown
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    
-    const savedVoiceName = localStorage.getItem('rag-evals-voice');
-    if (savedVoiceName) {
-      const voices = window.speechSynthesis.getVoices();
-      const selectedVoice = voices.find(v => v.name === savedVoiceName);
-      if (selectedVoice) utterance.voice = selectedVoice;
-    }
-    
-    utterance.onend = () => setSpeakingIndex(null);
-    utterance.onerror = () => setSpeakingIndex(null);
-    setSpeakingIndex(index);
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const toggleSource = (msgIndex: number) => setExpandedSources(prev => ({ ...prev, [msgIndex]: !prev[msgIndex] }));
-
-  // Ingest Handlers
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setFile(e.target.files[0]);
-      if (!docTitle) setDocTitle(e.target.files[0].name.split('.')[0]);
-    }
-  };
-
-  const handleIngest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!docTitle.trim() || isIngesting) return;
-    setIsIngesting(true);
-    setIngestStatus('Ingesting...');
-    try {
-      let res;
-      if (ingestMode === 'text') {
-        if (docText.trim().length < 10) throw new Error('Text must be at least 10 characters.');
-        res = await fetch('/api/seed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: docTitle, text: docText, collection_id: ingestCollectionId || undefined }) });
-      } else {
-        if (!file) throw new Error('Please select a file.');
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('title', docTitle);
-        if (ingestCollectionId) formData.append('collection_id', ingestCollectionId);
-        res = await fetch('/api/seed', { method: 'POST', body: formData });
-      }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to ingest');
-      setIngestStatus('Successfully added!');
-      refreshCollections();
-      setDocTitle(''); setDocText(''); setFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      setTimeout(() => setIngestStatus(''), 3000);
-    } catch (err) {
-      setIngestStatus('Error: ' + (err instanceof Error ? err.message : 'Failed to ingest'));
-    } finally { setIsIngesting(false); }
-  };
-
-  // Chat Logic
-  const sendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
-    const userMsg: Message = { role: 'user', content: input };
-    const currentInput = input;
-    
-    let currentChatId = activeChatId;
-    if (!currentChatId) {
-      currentChatId = Date.now().toString();
-      const newChat: ChatSession = {
-        id: currentChatId,
-        title: currentInput.substring(0, 30) + (currentInput.length > 30 ? '...' : ''),
-        messages: [],
-        pinned: false,
-        createdAt: Date.now()
-      };
-      setChats(prev => [newChat, ...prev]);
-      setActiveChatId(currentChatId);
-    }
-
-    const newMessages = [...messages, userMsg, { role: 'assistant' as const, content: '', isStreaming: true }];
-    setMessages(newMessages);
-    setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: newMessages } : c));
-    
-    // Auto-generate title if this is the first message in the chat
-    if (messages.length === 0) {
-      fetch('/api/generate-title', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: currentInput }),
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.title) {
-          setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: data.title } : c));
-        }
-      })
-      .catch(() => { /* Silently fail, keep the default title */ });
-    }
-    
-    setInput(''); setIsLoading(true);
-    try {
-      const res = await fetch('/api/query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: currentInput, top_k: 3, collection_id: scopeCollectionId || undefined }) });
-      if (!res.body) throw new Error('No response body');
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let done = false;
-      let buffer = '';
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        done = doneReading;
-        if (value) {
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n\n');
-          buffer = lines.pop() || '';
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const dataStr = line.replace('data: ', '').trim();
-              if (!dataStr) continue;
-              try {
-                const data = JSON.parse(dataStr);
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  const lastMsg = { ...updated[updated.length - 1] };
-                  if (data.type === 'sources') lastMsg.chunks = data.sources;
-                  else if (data.type === 'token') lastMsg.content = (lastMsg.content || '') + data.text;
-                  else if (data.type === 'done') lastMsg.isStreaming = false;
-                  updated[updated.length - 1] = lastMsg;
-                  setChats(cPrev => cPrev.map(c => c.id === currentChatId ? { ...c, messages: updated } : c));
-                  return updated;
-                });
-              } catch (err) { console.error('Error parsing SSE:', err); }
-            }
-          }
-        }
-      }
-    } catch {
-      setMessages((prev) => {
-        const updated = [...prev];
-        const lastMsg = { ...updated[updated.length - 1] };
-        lastMsg.content = 'Error connecting to backend.';
-        lastMsg.isStreaming = false;
-        updated[updated.length - 1] = lastMsg;
-        setChats(cPrev => cPrev.map(c => c.id === currentChatId ? { ...c, messages: updated } : c));
-        return updated;
-      });
-    } finally { setIsLoading(false); }
-  };
-
-  const visibleChats = chats.filter(c => c.messages.length > 0 || c.id === activeChatId);
-  const sortedChats = [...visibleChats].sort((a, b) => (a.pinned === b.pinned ? b.createdAt - a.createdAt : a.pinned ? -1 : 1));
 
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-background text-foreground font-sans transition-colors duration-300 relative">
-      
-      {/* BACKDROP FOR MOBILE */}
-      <AnimatePresence>
-        {sidebarOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm md:hidden"
-          />
-        )}
-      </AnimatePresence>
+      <ChatSidebar
+        open={sidebarOpen}
+        conversations={conversations.conversations}
+        activeId={chat.activeId}
+        loading={conversations.loading}
+        error={conversations.error}
+        onClose={() => setSidebarOpen(false)}
+        onNew={handleNewChat}
+        onSelect={handleSelectChat}
+        onRename={(id, title) => void conversations.rename(id, title)}
+        onTogglePin={(id) => void conversations.togglePin(id)}
+        onDelete={(id) => void handleDeleteChat(id)}
+      />
 
-      {/* FLOATING SIDEBAR */}
-      <AnimatePresence>
-        {sidebarOpen && (
-          <motion.aside
-            ref={sidebarRef}
-            initial={{ x: '-100%', opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: '-100%', opacity: 0 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed inset-y-3 left-3 z-[70] flex w-72 flex-col rounded-[2rem] border border-neutral-200 dark:border-white/[0.08] bg-white dark:bg-[#0a0a0a] shadow-2xl overflow-hidden"
-          >
-            <div className="flex items-center justify-between p-4 pb-2">
-              <span className="font-semibold text-sm text-neutral-900 dark:text-neutral-100">Chats</span>
-              <div className="flex items-center gap-1">
-                <button onClick={startNewChat} className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/[0.06] rounded-lg transition-colors" style={{ color: isDark ? '#a3a3a3' : '#525252' }} title="New Chat">
-                  <Plus className="w-4 h-4" />
-                </button>
-                <button onClick={() => setSidebarOpen(false)} className="p-1.5 hover:bg-neutral-100 dark:hover:bg-white/[0.06] rounded-lg transition-colors" style={{ color: isDark ? '#a3a3a3' : '#525252' }} title="Close Sidebar">
-                  <PanelLeftClose className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin">
-              {sortedChats.length === 0 ? (
-                <div className="text-xs text-center text-neutral-500 py-4 mt-4">No chats yet.</div>
-              ) : (
-                sortedChats.map(chat => (
-                  <div 
-                    key={chat.id}
-                    onClick={() => selectChat(chat.id)}
-                    className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${activeChatId === chat.id ? 'bg-accent-50 dark:bg-accent-500/10 text-accent-700 dark:text-accent-300' : 'hover:bg-neutral-100 dark:hover:bg-white/[0.04] text-neutral-700 dark:text-neutral-200'}`}
-                  >
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {chat.pinned && <Pin className="w-3 h-3 text-accent-500 shrink-0" />}
-                      {editingChatId === chat.id ? (
-                        <input
-                          type="text"
-                          value={editTitle}
-                          onChange={(e) => setEditTitle(e.target.value)}
-                          onBlur={() => saveRename(chat.id)}
-                          onKeyDown={(e) => e.key === 'Enter' && saveRename(chat.id)}
-                          autoFocus
-                          className="w-full bg-transparent outline-none border-b border-accent-500 text-sm text-black dark:text-white"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      ) : (
-                        <span className="text-sm truncate">{chat.title}</span>
-                      )}
-                    </div>
-                    {editingChatId !== chat.id && (
-                      <div className="relative opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={(e) => { e.stopPropagation(); setChatMenuOpenId(chatMenuOpenId === chat.id ? null : chat.id); }} className="p-1 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-md">
-                          <MoreVertical className="w-3.5 h-3.5" />
-                        </button>
-                        {chatMenuOpenId === chat.id && (
-                          <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-xl z-50 overflow-hidden py-1">
-                            <button onClick={(e) => togglePin(chat.id, e)} className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2">
-                              <Pin className="w-3 h-3" /> {chat.pinned ? 'Unpin' : 'Pin'}
-                            </button>
-                            <button onClick={(e) => startRename(chat.id, chat.title, e)} className="w-full text-left px-3 py-1.5 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2">
-                              <Edit2 className="w-3 h-3" /> Rename
-                            </button>
-                            <button onClick={(e) => deleteChat(chat.id, e)} className="w-full text-left px-3 py-1.5 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-2">
-                              <Trash2 className="w-3 h-3" /> Delete
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
-
-      {/* MAIN CONTENT */}
       <div className="flex flex-col h-full flex-1 overflow-hidden transition-all duration-300">
-        <header className="h-16 border-b border-neutral-200 dark:border-neutral-800/50 flex items-center justify-between px-4 md:px-6 bg-background/80 backdrop-blur-xl z-20 shrink-0">
-          <div className="flex items-center gap-2 md:gap-3">
-            {!sidebarOpen && (
-              <button onClick={() => setSidebarOpen(true)} className="p-2 -ml-2 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
-                <PanelLeftOpen className="w-5 h-5" />
-              </button>
-            )}
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-lg hidden sm:flex" style={{ background: 'linear-gradient(to bottom right, var(--accent-500), var(--accent-600))' }}>
-              <Layers className="w-4 h-4 text-white" />
-            </div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-sm md:text-base font-extrabold tracking-tight text-neutral-900 dark:text-white hidden sm:block">
-                RAG Evals
-              </h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 md:gap-4">
-            <nav className="flex items-center p-1 md:p-1.5 bg-neutral-100 dark:bg-neutral-900/80 backdrop-blur-md rounded-full border border-neutral-200 dark:border-neutral-800 shadow-inner">
-              <button 
-                onClick={() => setActiveTab('chat')} 
-                className={activeTab === 'chat' ? 'flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm' : 'flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full text-neutral-500 dark:text-neutral-400 hover:text-neutral-900'}
-              >
-                <MessageSquare className="w-3.5 h-3.5 md:w-4 md:h-4" /> <span className="hidden xs:inline">Chat</span>
-              </button>
-              <button 
-                onClick={() => setActiveTab('ingest')} 
-                className={activeTab === 'ingest' ? 'flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm' : 'flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full text-neutral-500 dark:text-neutral-400 hover:text-neutral-900'}
-              >
-                <Database className="w-3.5 h-3.5 md:w-4 md:h-4" /> <span className="hidden xs:inline">Knowledge Base</span>
-              </button>
-            <button
-                onClick={() => setActiveTab('documents')}
-                className={activeTab === 'documents' ? 'flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm' : 'flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full text-neutral-500 dark:text-neutral-400 hover:text-neutral-900'}
-              >
-                <FileText className="w-3.5 h-3.5 md:w-4 md:h-4" /> <span className="hidden xs:inline">Documents</span>
-              </button>
-            </nav>
-            <UserMenu />
-          </div>
-        </header>
+        <AppHeader
+          activeTab={activeTab}
+          onTabChange={goToTab}
+          sidebarOpen={sidebarOpen}
+          onOpenSidebar={() => setSidebarOpen(true)}
+        />
 
         <main className="flex-1 relative overflow-hidden flex flex-col">
-          {activeTab === 'chat' && (
-            <div className="flex-1 flex flex-col h-full animate-in fade-in duration-300">
-              <div className="flex-1 overflow-y-auto w-full">
-                <div className="max-w-4xl mx-auto p-3 sm:p-6 md:p-8 min-h-full flex flex-col">
-                  {messages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center flex-1 text-center space-y-6 md:space-y-8 animate-in fade-in zoom-in-95 duration-500 mt-10 md:mt-0">
-                      <div className="space-y-2 md:space-y-3">
-                        <div className="w-16 h-16 md:w-20 md:h-20 rounded-3xl flex items-center justify-center mx-auto shadow-2xl" style={{ background: 'linear-gradient(135deg, var(--accent-500) 0%, transparent 100%)', border: '1px solid var(--accent-500)', boxShadow: '0 0 30px -5px var(--accent-500)' }}>
-                          <Sparkles className="w-8 h-8 md:w-10 md:h-10" style={{ color: 'var(--accent-500)' }} />
-                        </div>
-                        <h2 className="text-2xl md:text-3xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight mt-4">How can I help you today?</h2>
-                        <p className="text-neutral-500 text-xs md:text-sm">Ask anything about your ingested documents.</p>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3 w-full max-w-2xl px-2">
-                        <button onClick={() => setInput("Summarize the key points of my documents.")} className="p-3 md:p-4 bg-white dark:bg-neutral-900/50 hover:bg-neutral-50 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 rounded-xl text-left transition-all group shadow-sm">
-                          <p className="text-xs md:text-sm font-medium text-neutral-900 dark:text-neutral-200 group-hover:text-black dark:group-hover:text-white">Summarize documents</p>
-                          <p className="text-[10px] md:text-xs text-neutral-500 dark:text-neutral-400 mt-1">Get a quick TL;DR</p>
-                        </button>
-                        <button onClick={() => setInput("What are the main policies mentioned?")} className="p-3 md:p-4 bg-white dark:bg-neutral-900/50 hover:bg-neutral-50 dark:hover:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 rounded-xl text-left transition-all group shadow-sm">
-                          <p className="text-xs md:text-sm font-medium text-neutral-900 dark:text-neutral-200 group-hover:text-black dark:group-hover:text-white">Find specific policies</p>
-                          <p className="text-[10px] md:text-xs text-neutral-500 dark:text-neutral-400 mt-1">Extract rules and guidelines</p>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4 md:space-y-6">
-                      {messages.map((msg, i) => {
-                        const isUser = msg.role === 'user';
-                        const isThinking = !isUser && msg.content === '' && msg.isStreaming;
-                        const isExpanded = expandedSources[i];
-                        return (
-                          <div key={i} className={`flex gap-2 md:gap-4 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-                            {!isUser && (
-                              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-accent-500/10 border border-accent-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                                <Layers className="w-3 h-3 md:w-4 md:h-4 text-accent-500" />
-                              </div>
-                            )}
-                            <div className={`max-w-[85%] md:max-w-[85%] ${isUser ? 'bg-accent-600 text-white rounded-2xl rounded-tr-sm px-4 py-2 md:px-5 md:py-3 shadow-md' : 'bg-transparent text-neutral-800 dark:text-neutral-200'}`}>
-                              {!isUser ? (
-                                <div className="group relative">
-                                  <div className="prose dark:prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-neutral-100 dark:prose-pre:bg-neutral-950 prose-pre:border prose-pre:border-neutral-200 dark:prose-pre:border-neutral-800 prose-table:w-full prose-table:border-collapse">
-                                    {isThinking ? (
-                                      <div className="flex items-center gap-2 h-6 text-sm text-accent-500 font-medium">
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                        <span className="animate-pulse">Searching knowledge base...</span>
-                                      </div>
-                                    ) : (
-                                      <>
-                                        <ReactMarkdown 
-                                          remarkPlugins={[remarkGfm]}
-                                          components={{
-                                            table: ({...props}) => (
-                                              <div className="overflow-x-auto my-4 md:my-6 rounded-lg border border-neutral-200 dark:border-neutral-800">
-                                                <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-800" {...props} />
-                                              </div>
-                                            ),
-                                            thead: ({...props}) => <thead className="bg-neutral-100 dark:bg-neutral-900/50" {...props} />,
-                                            th: ({...props}) => <th className="px-2 md:px-4 py-2 md:py-3 text-left text-[10px] md:text-xs font-semibold text-neutral-900 dark:text-neutral-100 uppercase tracking-wider" {...props} />,
-                                            td: ({...props}) => <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-neutral-700 dark:text-neutral-300 border-t border-neutral-200 dark:border-neutral-800" {...props} />,
-                                            a: ({...props}) => <a className="text-accent-600 hover:underline font-medium" target="_blank" rel="noopener noreferrer" {...props} />
-                                          }}
-                                        >
-                                          {msg.content}
-                                        </ReactMarkdown>
-                                        {msg.isStreaming && <span className="inline-block w-1.5 h-4 ml-1 bg-accent-500 animate-pulse align-middle" />}
-                                      </>
-                                    )}
-                                  </div>
-                                  
-                                  {/* Action Bar */}
-                                  {!msg.isStreaming && msg.content && (
-                                    <div className="mt-2 flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
-                                      <button onClick={() => handleCopy(msg.content, i)} className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] md:text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 rounded-md transition-colors" title="Copy text">
-                                        {copiedIndex === i ? <><Check className="w-3.5 h-3.5 text-accent-500" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
-                                      </button>
-                                      <button onClick={() => handleSpeak(msg.content, i)} className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] md:text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 rounded-md transition-colors" title="Read aloud">
-                                        {speakingIndex === i ? <><Square className="w-3.5 h-3.5 fill-current text-accent-500" /> Stop</> : <><Volume2 className="w-3.5 h-3.5" /> Read aloud</>}
-                                      </button>
-                                    </div>
-                                  )}
-                                  
-                                  {msg.chunks && msg.chunks.length > 0 && (
-                                    <div className="mt-4 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-neutral-100 dark:bg-neutral-900/30">
-                                      <button onClick={() => toggleSource(i)} className="w-full flex items-center justify-between px-3 md:px-4 py-2 md:py-2.5 bg-neutral-50 dark:bg-neutral-900/50 hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors text-[10px] md:text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-                                        <span className="flex items-center gap-2"><Database className="w-3.5 h-3.5 text-accent-500" />{msg.chunks.length} Sources Retrieved</span>
-                                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                      </button>
-                                      {isExpanded && (
-                                        <div className="p-2 md:p-3 space-y-2 border-t border-neutral-200 dark:border-neutral-800/50 bg-white dark:bg-neutral-950/50">
-                                          {msg.chunks.map((chunk, j) => (
-                                            <div key={j} className="text-[10px] md:text-xs bg-neutral-50 dark:bg-neutral-900 p-2 md:p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400">
-                                              <span className="inline-block px-1.5 py-0.5 bg-neutral-200 dark:bg-neutral-800 text-accent-600 rounded text-[9px] md:text-[10px] font-bold mb-2">Chunk {j + 1}</span>
-                                              <p className="whitespace-pre-wrap">{chunk.content}</p>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <p className="text-xs md:text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                              )}
-                            </div>
-                            {isUser && (<div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center shrink-0 mt-0.5"><User className="w-3 h-3 md:w-5 md:h-5 text-neutral-600 dark:text-neutral-400" /></div>)}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                  <div ref={messagesEndRef} className="h-4" />
-                </div>
-              </div>
-              <footer className="p-2 md:p-4 border-t border-neutral-200 dark:border-neutral-800/50 bg-transparent shrink-0">
-                <div className="w-full max-w-4xl mx-auto">
-                  {collections.length > 0 && (
-                    <div className="flex items-center gap-2 mb-2 px-1">
-                      <span className="text-[10px] md:text-xs font-medium text-neutral-500">Search in</span>
-                      <select value={scopeCollectionId} onChange={(e) => setScopeCollectionId(e.target.value)} className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg py-1 px-2 text-[10px] md:text-xs text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500/50 max-w-[60%]">
-                        <option value="">All documents</option>
-                        {collections.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
-                      </select>
-                    </div>
-                  )}
-                  <form onSubmit={sendMessage} className="relative flex items-end gap-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-2xl p-1.5 md:p-2 focus-within:ring-2 focus-within:ring-accent-500/50 focus-within:border-accent-500 transition-all shadow-sm">
-                    <textarea 
-                      value={input} 
-                      onChange={(e) => setInput(e.target.value)} 
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          sendMessage(e);
-                        }
-                      }}
-                      placeholder="Message RAG Evals..." 
-                      rows={1}
-                      className="w-full max-h-32 bg-transparent text-xs md:text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-500 px-2 md:px-3 py-1.5 md:py-2.5 resize-none focus:outline-none" 
-                      style={{ minHeight: '36px', maxHeight: '120px' }}
-                    />
-                    <button type="submit" disabled={isLoading || !input.trim()} className="p-1.5 md:p-2.5 mb-0.5 text-white rounded-xl transition-all disabled:opacity-50 disabled:bg-neutral-200 dark:disabled:bg-neutral-800 disabled:text-neutral-500 shrink-0 shadow-sm" style={{ backgroundColor: 'var(--accent-600)' }}><Send className="w-3.5 h-3.5 md:w-4 md:h-4" /></button>
-                  </form>
-                  <p className="text-center text-[9px] md:text-[10px] text-neutral-500 mt-1 md:mt-2">RAG Evals can make mistakes. Consider verifying important information.</p>
-                </div>
-              </footer>
-            </div>
-          )}
+          <ChatTab
+            active={activeTab === 'chat'}
+            conversationId={chat.activeId}
+            messages={chat.messages}
+            historyLoading={chat.historyLoading}
+            isStreaming={chat.isStreaming}
+            error={chat.error}
+            collections={collections}
+            scopeCollectionId={activeScope}
+            onScopeChange={setScopeCollectionId}
+            onSend={(text) => void chat.send(text)}
+            onOpenDocument={(documentId) => goToTab('documents', documentId)}
+          />
+          <IngestTab active={activeTab === 'ingest'} collections={collections} onIngested={refreshCollections} />
           {activeTab === 'documents' && (
             <DocumentsTab
               collections={collections}
               onCollectionsChanged={refreshCollections}
-              onAddDocument={() => setActiveTab('ingest')}
+              onAddDocument={() => goToTab('ingest')}
+              initialDocumentId={focusDocumentId}
             />
-          )}
-          {activeTab === 'ingest' && (
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 animate-in fade-in duration-300">
-              <div className="max-w-2xl mx-auto space-y-6 md:space-y-8">
-                <div>
-                  <h2 className="text-xl md:text-2xl font-bold text-neutral-900 dark:text-neutral-100">Knowledge Base</h2>
-                  <p className="text-xs md:text-sm text-neutral-500 mt-1">Upload documents or paste text to expand the AI&apos;s knowledge.</p>
-                </div>
-                <div className="bg-white dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 md:p-6 shadow-sm">
-                  <div className="flex items-center p-1 md:p-1.5 bg-neutral-100 dark:bg-neutral-950/80 rounded-full border border-neutral-200 dark:border-neutral-800 mb-4 md:mb-6 shadow-inner">
-                    <button onClick={() => setIngestMode('text')} className={`flex-1 flex items-center justify-center gap-1.5 md:gap-2 py-1.5 md:py-2.5 text-xs md:text-sm font-medium rounded-full transition-all duration-300 ease-out ${ingestMode === 'text' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50'}`}><Type className="w-3.5 h-3.5 md:w-4 md:h-4" /> Paste Text</button>
-                    <button onClick={() => setIngestMode('file')} className={`flex-1 flex items-center justify-center gap-1.5 md:gap-2 py-1.5 md:py-2.5 text-xs md:text-sm font-medium rounded-full transition-all duration-300 ease-out ${ingestMode === 'file' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50'}`}><UploadCloud className="w-3.5 h-3.5 md:w-4 md:h-4" /> Upload Files</button>
-                  </div>
-                  <form onSubmit={handleIngest} className="flex flex-col gap-4 md:gap-5">
-                    {collections.length > 0 && (
-                      <div>
-                        <label className="block text-[10px] md:text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5 md:mb-2">Collection (optional)</label>
-                        <select value={ingestCollectionId} onChange={(e) => setIngestCollectionId(e.target.value)} className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl py-2 md:py-3 px-3 md:px-4 text-xs md:text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500 transition-all">
-                          <option value="">No collection</option>
-                          {collections.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
-                        </select>
-                      </div>
-                    )}
-                    <div>
-                      <label className="block text-[10px] md:text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5 md:mb-2">Document Title</label>
-                      <input type="text" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} placeholder="e.g., Company Handbook" className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl py-2 md:py-3 px-3 md:px-4 text-xs md:text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500 transition-all" />
-                    </div>
-                    {ingestMode === 'text' ? (
-                      <div>
-                        <div className="flex justify-between items-end mb-1.5 md:mb-2">
-                          <label className="block text-[10px] md:text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Text Content</label>
-                          <span className={`text-[9px] md:text-[10px] font-mono ${docText.length > 0 && docText.length < 10 ? 'text-red-500' : 'text-neutral-500'}`}>{docText.length}/10 chars</span>
-                        </div>
-                        <textarea value={docText} onChange={(e) => setDocText(e.target.value)} placeholder="Paste your text here..." className="w-full h-32 md:h-48 bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl py-2 md:py-3 px-3 md:px-4 text-xs md:text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500 resize-none transition-all" />
-                      </div>
-                    ) : (
-                      <div>
-                        <label className="block text-[10px] md:text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5 md:mb-2">Upload File</label>
-                        <div className="h-32 md:h-48 border-2 border-dashed border-neutral-300 dark:border-neutral-800 hover:border-accent-500/50 rounded-xl flex flex-col items-center justify-center p-4 md:p-6 cursor-pointer bg-neutral-50 dark:bg-neutral-950/50 transition-all group" onClick={() => fileInputRef.current?.click()}>
-                          <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp" className="hidden" />
-                          {file ? (
-                            <div className="text-center">
-                              <div className="w-10 h-10 md:w-12 md:h-12 bg-accent-500/10 rounded-full flex items-center justify-center mx-auto mb-2 md:mb-3"><FileText className="w-5 h-5 md:w-6 md:h-6 text-accent-500" /></div>
-                              <p className="text-xs md:text-sm font-medium text-neutral-900 dark:text-neutral-200">{file.name}</p>
-                              <p className="text-[10px] md:text-xs text-neutral-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
-                            </div>
-                          ) : (
-                            <div className="text-center text-neutral-500 group-hover:text-neutral-700 dark:group-hover:text-neutral-400 transition-colors">
-                              <UploadCloud className="w-8 h-8 md:w-10 md:h-10 mx-auto mb-2 md:mb-3 opacity-50 group-hover:opacity-100 transition-opacity" />
-                              <p className="text-xs md:text-sm font-medium">Click to select a file</p>
-                              <p className="text-[10px] md:text-xs mt-1 opacity-70">PDF, TXT, MD, PNG, JPG</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    <button type="submit" disabled={isIngesting || !docTitle.trim() || (ingestMode === 'text' ? docText.trim().length < 10 : !file)} className="flex items-center justify-center gap-2 w-full text-white py-2 md:py-3 rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg mt-2 text-xs md:text-sm" style={{ backgroundColor: 'var(--accent-600)' }}>
-                      {isIngesting ? <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" /> : <Sparkles className="w-4 h-4 md:w-5 md:h-5" />}
-                      {isIngesting ? 'Ingesting...' : 'Ingest Document'}
-                    </button>
-                    {ingestStatus && (<div className={`p-2 md:p-3 rounded-lg text-[10px] md:text-xs text-center font-medium ${ingestStatus.includes('Error') ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-accent-500/10 text-accent-600 border border-accent-500/20'}`}>{ingestStatus}</div>)}
-                  </form>
-                </div>
-              </div>
-            </div>
           )}
         </main>
       </div>
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-

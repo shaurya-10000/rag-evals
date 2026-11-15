@@ -36,6 +36,7 @@ type Props = {
   collections: CollectionInfo[];
   onCollectionsChanged: () => void | Promise<void>;
   onAddDocument: () => void;
+  initialDocumentId?: string | null;
 };
 
 const MIN_CONTENT_CHARS = 10;
@@ -85,7 +86,12 @@ function Modal({ children, onClose, wide }: { children: ReactNode; onClose: () =
   );
 }
 
-export function DocumentsTab({ collections, onCollectionsChanged, onAddDocument }: Props) {
+export function DocumentsTab({
+  collections,
+  onCollectionsChanged,
+  onAddDocument,
+  initialDocumentId = null,
+}: Props) {
   const [filter, setFilter] = useState<string>('all'); // 'all' | 'unfiled' | collection id
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -384,6 +390,22 @@ export function DocumentsTab({ collections, onCollectionsChanged, onAddDocument 
   };
 
   // --------------------------------------------------------------- render
+  // Deep link: open the editor for a document chosen elsewhere (e.g. a citation).
+  useEffect(() => {
+    if (!initialDocumentId) return;
+    let cancelled = false;
+    api<DocDetail>(`/api/documents/${initialDocumentId}`)
+      .then((detail) => {
+        if (!cancelled) openEditor(detail);
+      })
+      .catch(() => {
+        if (!cancelled) flash('error', 'That document no longer exists.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialDocumentId]);
+
   const chipCls = (active: boolean) =>
     `flex items-center gap-2 shrink-0 px-3 py-2 rounded-xl text-xs md:text-sm font-medium transition-colors text-left ${
       active

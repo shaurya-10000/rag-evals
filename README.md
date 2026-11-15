@@ -324,7 +324,8 @@ pytest tests/
 - [ ] Password reset flow (requires email service)
 - [ ] OAuth (Google Sign-In)
 - [ ] RAGAS generation metrics (Faithfulness, Answer Relevance)
-- [ ] Persistent chat history in Postgres (currently LocalStorage)
+- [x] Persistent chat history in Postgres
+- [x] Clickable citations with a source panel
 
 ---
 
