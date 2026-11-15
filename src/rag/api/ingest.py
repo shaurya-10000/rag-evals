@@ -81,6 +81,22 @@ async def _read_payload(request: Request) -> tuple[str, str, str]:
     raise HTTPException(status_code=415, detail="Unsupported Media Type")
 
 
+async def _read_collection_id(request: Request) -> uuid.UUID | None:
+    """Optional collection to file the new document under (JSON or multipart)."""
+    content_type = request.headers.get("content-type", "")
+    raw: object = None
+    if content_type.startswith("application/json"):
+        raw = (await request.json()).get("collection_id")
+    elif content_type.startswith("multipart/form-data"):
+        raw = (await request.form()).get("collection_id")
+    if not raw:
+        return None
+    try:
+        return uuid.UUID(str(raw))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid collection_id") from None
+
+
 @router.post("/ingest", response_model=IngestResponse)
 @limiter.limit("3/minute")
 async def ingest(
@@ -94,11 +110,20 @@ async def ingest(
     logger.info(f"[{request_id}] Ingest started for user={current_user.username}")
 
     title, text, source = await _read_payload(request)
+    collection_id = await _read_collection_id(request)
+    if collection_id is not None:
+        lookup = DocumentRepository(db=db, embedder=embedder)
+        if lookup.get_collection(current_user.id, collection_id) is None:
+            raise HTTPException(status_code=404, detail="Collection not found")
 
     try:
         repo = DocumentRepository(db=db, embedder=embedder)
         doc = repo.ingest_document(
-            user_id=current_user.id, title=title, text=text, source_url=source
+            user_id=current_user.id,
+            title=title,
+            text=text,
+            source_url=source,
+            collection_id=collection_id,
         )
         logger.info(f"[{request_id}] Ingest done. doc_id={doc.id}")
         return IngestResponse(document_id=doc.id, status="ingested")

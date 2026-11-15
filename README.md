@@ -23,7 +23,7 @@
 |  |  |
 | :--- | :--- |
 | **What** | A multi-tenant RAG SaaS where each user signs up, ingests their own documents (text/PDF/images), and chats with a private knowledge base. Includes streaming SSE responses, self-hosted auth, a beautiful floating UI, and CI-gated evaluation. |
-| **Why it's interesting** | Most RAG projects are toy demos. This one has **per-user document isolation**, **self-hosted JWT auth**, **multi-modal ingestion**, a **51-question eval harness**, **real-time SSE streaming**, **auto-generated chat titles**, **Text-to-Speech**, **dynamic color themes**, and a **Hybrid Search + Reranker** pipeline. |
+| **Why it's interesting** | Most RAG projects are toy demos. This one has **per-user document isolation**, **self-hosted JWT auth**, **multi-modal ingestion**, a **51-question eval harness**, **real-time SSE streaming**, **auto-generated chat titles**, **Text-to-Speech**, **dynamic color themes**, a **Hybrid Search + Reranker** pipeline, and a **document library** with collections and in-app editing. |
 | **Stack** | Python 3.11 · FastAPI · SQLAlchemy 2.0 · Postgres (pgvector) · Google Gemini · Next.js 16 · Tailwind CSS v4 · Framer Motion · Pwdlib/Argon2 · python-jose · SlowAPI · Pytest · Ruff · Mypy · GitHub Actions |
 
 ## Contents
@@ -33,6 +33,7 @@
 - [Core guarantees](#core-guarantees)
 - [Security & multi-tenancy](#security--multi-tenancy)
 - [Design decisions](#design-decisions)
+- [Document library](#document-library)
 - [The Evaluation Harness](#the-evaluation-harness)
 - [Quick start](#quick-start)
 - [Environment variables](#environment-variables)
@@ -106,6 +107,8 @@ flowchart TD
 | The API won't crash on LLM outage | The `Generator` catches `Exception` and loops through the `self.models` array. |
 | Multi-modal support | PDFs and Images are parsed into text (via PyPDF and Gemini Vision) before embedding. |
 | Real-time streaming | The `/query` endpoint returns an SSE `StreamingResponse`. |
+| Editing never loses data | Edited text is chunked and embedded *before* the old chunks are deleted, then swapped in one transaction. A Gemini failure leaves the document untouched. |
+| Collections are private | Document and collection endpoints filter by `user_id`. Another user's collection ID returns 404 (or no results in `/query`). |
 | Type safety across the board | `mypy --strict` passes on all source files. |
 | CI won't merge regressions | `eval-gate` job fails if `recall_at_k < 0.7`. |
 
@@ -118,7 +121,7 @@ flowchart TD
 | **Route Protection** | Next.js `middleware.ts` verifies the JWT before rendering protected routes. |
 | **Per-user isolation** | Every `Document` has a `user_id` FK. The retriever filters by `current_user.id` on every query. |
 | **API Keys** | `/ingest` and `/query` require `X-API-Key` header (defense in depth against direct API abuse). |
-| **Rate Limiting** | `slowapi` limits `/query` to 5 req/min and `/ingest` to 3 req/min per IP. |
+| **Rate Limiting** | `slowapi` limits `/query` to 5 req/min and `/ingest` to 3 req/min per IP. Content edits (`PATCH /documents/{id}`) are limited to 10 req/min because each one re-embeds. |
 | **Upload Size** | Files > 10MB rejected with `413 Payload Too Large`. |
 
 ## Design decisions
@@ -134,6 +137,31 @@ flowchart TD
 | **Next.js 16 + Tailwind v4** | Cutting edge, zero-config CSS variables, extremely fast builds with Turbopack. | Requires strict adherence to new Tailwind v4 config rules. |
 | **Framer Motion** | Smooth spring animations for the floating sidebar. | Adds ~10kb to bundle size. |
 | **Browser SpeechSynthesis** | TTS without hitting an API or paying for audio generation. | Voice options depend on the user's OS. |
+
+---
+
+## Document library
+
+Users manage their knowledge base from the **Documents** tab:
+
+- **Browse and search** every ingested document, with chunk count and last-updated time.
+- **Rename** a document inline, or **edit its full text**. Changed text is re-chunked and re-embedded automatically.
+- **Organize into collections.** Create, rename and delete collections, and move documents between them. Deleting a collection either keeps its documents (they become unfiled) or deletes them too.
+- **Scope retrieval.** Pick a collection when ingesting, or limit a chat to one collection with the "Search in" selector.
+
+Documents store their original text in `documents.content`. Documents ingested before this feature were backfilled by joining their chunks.
+
+| Method | Path | Purpose |
+| :--- | :--- | :--- |
+| `GET` | `/documents` | List documents. Filters: `collection_id`, `unfiled=true`, `q` (title search). |
+| `GET` | `/documents/{id}` | Full document including text. |
+| `PATCH` | `/documents/{id}` | Rename and/or replace content (`title`, `content`). |
+| `PUT` | `/documents/{id}/collection` | Move to a collection (`collection_id`, or `null` to unfile). |
+| `DELETE` | `/documents/{id}` | Delete a document and its chunks. |
+| `GET` / `POST` | `/collections` | List or create collections. |
+| `PATCH` / `DELETE` | `/collections/{id}` | Rename, or delete (`?delete_documents=true` also deletes its documents). |
+
+`POST /ingest` and `POST /query` both accept an optional `collection_id`. All endpoints require the `X-API-Key` header and the auth cookie, and are scoped to the current user.
 
 ---
 
@@ -255,19 +283,19 @@ pytest tests/
 ├── eval/gold_set/              # 51 curated Q&A pairs
 ├── eval/fixtures/              # Deterministic embeddings for CI
 ├── src/rag/
-│   ├── api/                    # FastAPI routes (query, ingest, title, auth)
+│   ├── api/                    # FastAPI routes (query, ingest, documents, collections, title, auth)
 │   ├── auth/                   # JWT + Argon2 password utilities
 │   ├── config/                 # Pydantic settings
-│   ├── db_models.py            # User, Document, Chunk models
+│   ├── db_models.py            # User, Collection, Document, Chunk models
 │   ├── eval/                   # Metrics (Recall, MRR) and runner
 │   ├── generate/               # Streaming LLM + Multithreaded Reranker
 │   ├── ingest/                 # Sentence-aware chunking
 │   ├── migrations/             # Alembic migrations
 │   ├── repository.py           # Idempotent DB operations (per-user)
-│   └── retrieve/               # Hybrid Retriever (scoped by user_id)
+│   └── retrieve/               # Hybrid Retriever (scoped by user_id, optional collection)
 ├── web/                        # Next.js frontend
 │   ├── src/app/                # App Router pages
-│   ├── src/components/         # Shared components (UserMenu, ThemeProvider)
+│   ├── src/components/         # Shared components (UserMenu, ThemeProvider, DocumentsTab)
 │   └── src/app/api/            # API proxies to FastAPI
 └── tests/                      # Unit and integration tests
 ```
@@ -278,6 +306,7 @@ pytest tests/
 - **Free-tier Gemini quotas.** Vision and generation have strict daily limits on the free tier. The CI Eval Gate uses mock fixtures to bypass this.
 - **No password reset flow.** If a user forgets their password, they can't recover their account yet (no email service configured).
 - **No OAuth (Google/GitHub).** Users must sign up with email/password.
+- **Edits re-embed the whole document.** Large edits cost Gemini embedding calls and count against free-tier quotas.
 
 ## Roadmap
 
@@ -291,6 +320,7 @@ pytest tests/
 - [x] Floating history sidebar with Framer Motion
 - [x] AI auto-generated chat titles
 - [x] Text-to-Speech with voice selection
+- [x] Document library: view, rename, edit and organize documents into collections
 - [ ] Password reset flow (requires email service)
 - [ ] OAuth (Google Sign-In)
 - [ ] RAGAS generation metrics (Faithfulness, Answer Relevance)

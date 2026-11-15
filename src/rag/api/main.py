@@ -9,7 +9,7 @@ from google.genai import errors as genai_errors
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from rag.api import ingest, query, title
+from rag.api import documents, ingest, query, title
 from rag.api.auth import router as auth_router
 from rag.api.deps import get_reranker, limiter
 
@@ -37,6 +37,7 @@ app.include_router(auth_router)
 app.include_router(ingest.router)
 app.include_router(query.router)
 app.include_router(title.router)
+app.include_router(documents.router)
 
 
 @app.exception_handler(genai_errors.APIError)

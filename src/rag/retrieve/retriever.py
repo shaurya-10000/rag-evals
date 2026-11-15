@@ -28,18 +28,28 @@ class Retriever:
         self.embedder = embedder
 
     def _vector_search(
-        self, query_embedding: list[float], user_id: uuid.UUID | None
+        self,
+        query_embedding: list[float],
+        user_id: uuid.UUID | None,
+        collection_id: uuid.UUID | None = None,
     ) -> list[Chunk]:
         q = self.db.query(Chunk).join(Document).filter(Chunk.embedding.isnot(None))
         if user_id:
             q = q.filter(Document.user_id == user_id)
+        if collection_id:
+            q = q.filter(Document.collection_id == collection_id)
         return (
             q.order_by(Chunk.embedding.cosine_distance(query_embedding))
             .limit(CANDIDATES_PER_SEARCH)
             .all()
         )
 
-    def _keyword_search(self, query: str, user_id: uuid.UUID | None) -> list[Chunk]:
+    def _keyword_search(
+        self,
+        query: str,
+        user_id: uuid.UUID | None,
+        collection_id: uuid.UUID | None = None,
+    ) -> list[Chunk]:
         sql = (
             "SELECT c.id FROM chunks c "
             "JOIN documents d ON c.document_id = d.id "
@@ -50,6 +60,9 @@ class Retriever:
         if user_id:
             sql += " AND d.user_id = :user_id"
             params["user_id"] = str(user_id)
+        if collection_id:
+            sql += " AND d.collection_id = :collection_id"
+            params["collection_id"] = str(collection_id)
         sql += (
             " ORDER BY ts_rank(c.search_vector, plainto_tsquery('english', :query)) DESC"
             f" LIMIT {CANDIDATES_PER_SEARCH}"
@@ -64,8 +77,14 @@ class Retriever:
         by_id = {chunk.id: chunk for chunk in rows}
         return [by_id[chunk_id] for chunk_id in keyword_ids if chunk_id in by_id]
 
-    def search(self, query: str, user_id: uuid.UUID | None = None, top_k: int = 5) -> list[Chunk]:
+    def search(
+        self,
+        query: str,
+        user_id: uuid.UUID | None = None,
+        top_k: int = 5,
+        collection_id: uuid.UUID | None = None,
+    ) -> list[Chunk]:
         query_embedding = self.embedder.embed_text(query)
-        vector_results = self._vector_search(query_embedding, user_id)
-        keyword_results = self._keyword_search(query, user_id)
+        vector_results = self._vector_search(query_embedding, user_id, collection_id)
+        keyword_results = self._keyword_search(query, user_id, collection_id)
         return reciprocal_rank_fusion([vector_results, keyword_results])[:top_k]

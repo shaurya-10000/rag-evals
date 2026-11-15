@@ -43,7 +43,10 @@ def query(
     t_start = time.perf_counter()
     retriever = Retriever(db=db, embedder=embedder)
     candidates = retriever.search(
-        query=payload.query, user_id=current_user.id, top_k=RERANK_CANDIDATES
+        query=payload.query,
+        user_id=current_user.id,
+        top_k=RERANK_CANDIDATES,
+        collection_id=payload.collection_id,
     )
     t_retrieve = time.perf_counter()
 

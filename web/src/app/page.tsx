@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Loader2, Layers, User, Database, UploadCloud, FileText, Type, Sparkles, MessageSquare, Copy, Check, Plus, ChevronDown, ChevronUp, Pin, Edit2, Trash2, MoreVertical, PanelLeftClose, PanelLeftOpen, Volume2, Square } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserMenu } from '@/components/user-menu';
+import { DocumentsTab, type CollectionInfo } from '@/components/documents-tab';
 import { useTheme } from 'next-themes';
 
 type Chunk = { id: string; content: string; metadata: Record<string, unknown> };
@@ -17,7 +18,7 @@ export default function Home() {
 
 
   const isDark = resolvedTheme === 'dark';
-  const [activeTab, setActiveTab] = useState<'chat' | 'ingest'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'ingest' | 'documents'>('chat');
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -51,6 +52,39 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isIngesting, setIsIngesting] = useState(false);
   const [ingestStatus, setIngestStatus] = useState('');
+
+  // Collections (Documents tab, ingest target, chat scope)
+  const [collections, setCollections] = useState<CollectionInfo[]>([]);
+  const [ingestCollectionId, setIngestCollectionId] = useState('');
+  const [scopeCollectionId, setScopeCollectionId] = useState('');
+
+  const refreshCollections = useCallback(async () => {
+    try {
+      const res = await fetch('/api/collections', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data: CollectionInfo[] = await res.json();
+      setCollections(data);
+      setIngestCollectionId((prev) => (data.some((c) => c.id === prev) ? prev : ''));
+      setScopeCollectionId((prev) => (data.some((c) => c.id === prev) ? prev : ''));
+    } catch {
+      /* keep the previous list */
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/collections', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: CollectionInfo[] | null) => {
+        if (!cancelled && data) setCollections(data);
+      })
+      .catch(() => {
+        /* keep the empty list */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Cleanup TTS on unmount
   useEffect(() => {
@@ -179,17 +213,19 @@ export default function Home() {
       let res;
       if (ingestMode === 'text') {
         if (docText.trim().length < 10) throw new Error('Text must be at least 10 characters.');
-        res = await fetch('/api/seed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: docTitle, text: docText }) });
+        res = await fetch('/api/seed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: docTitle, text: docText, collection_id: ingestCollectionId || undefined }) });
       } else {
         if (!file) throw new Error('Please select a file.');
         const formData = new FormData();
         formData.append('file', file);
         formData.append('title', docTitle);
+        if (ingestCollectionId) formData.append('collection_id', ingestCollectionId);
         res = await fetch('/api/seed', { method: 'POST', body: formData });
       }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to ingest');
       setIngestStatus('Successfully added!');
+      refreshCollections();
       setDocTitle(''); setDocText(''); setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       setTimeout(() => setIngestStatus(''), 3000);
@@ -241,7 +277,7 @@ export default function Home() {
     
     setInput(''); setIsLoading(true);
     try {
-      const res = await fetch('/api/query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: currentInput, top_k: 3 }) });
+      const res = await fetch('/api/query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: currentInput, top_k: 3, collection_id: scopeCollectionId || undefined }) });
       if (!res.body) throw new Error('No response body');
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -417,6 +453,12 @@ export default function Home() {
               >
                 <Database className="w-3.5 h-3.5 md:w-4 md:h-4" /> <span className="hidden xs:inline">Knowledge Base</span>
               </button>
+            <button
+                onClick={() => setActiveTab('documents')}
+                className={activeTab === 'documents' ? 'flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm' : 'flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full text-neutral-500 dark:text-neutral-400 hover:text-neutral-900'}
+              >
+                <FileText className="w-3.5 h-3.5 md:w-4 md:h-4" /> <span className="hidden xs:inline">Documents</span>
+              </button>
             </nav>
             <UserMenu />
           </div>
@@ -539,6 +581,15 @@ export default function Home() {
               </div>
               <footer className="p-2 md:p-4 border-t border-neutral-200 dark:border-neutral-800/50 bg-transparent shrink-0">
                 <div className="w-full max-w-4xl mx-auto">
+                  {collections.length > 0 && (
+                    <div className="flex items-center gap-2 mb-2 px-1">
+                      <span className="text-[10px] md:text-xs font-medium text-neutral-500">Search in</span>
+                      <select value={scopeCollectionId} onChange={(e) => setScopeCollectionId(e.target.value)} className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-lg py-1 px-2 text-[10px] md:text-xs text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500/50 max-w-[60%]">
+                        <option value="">All documents</option>
+                        {collections.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+                      </select>
+                    </div>
+                  )}
                   <form onSubmit={sendMessage} className="relative flex items-end gap-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded-2xl p-1.5 md:p-2 focus-within:ring-2 focus-within:ring-accent-500/50 focus-within:border-accent-500 transition-all shadow-sm">
                     <textarea 
                       value={input} 
@@ -561,6 +612,13 @@ export default function Home() {
               </footer>
             </div>
           )}
+          {activeTab === 'documents' && (
+            <DocumentsTab
+              collections={collections}
+              onCollectionsChanged={refreshCollections}
+              onAddDocument={() => setActiveTab('ingest')}
+            />
+          )}
           {activeTab === 'ingest' && (
             <div className="flex-1 overflow-y-auto p-4 md:p-8 animate-in fade-in duration-300">
               <div className="max-w-2xl mx-auto space-y-6 md:space-y-8">
@@ -574,6 +632,15 @@ export default function Home() {
                     <button onClick={() => setIngestMode('file')} className={`flex-1 flex items-center justify-center gap-1.5 md:gap-2 py-1.5 md:py-2.5 text-xs md:text-sm font-medium rounded-full transition-all duration-300 ease-out ${ingestMode === 'file' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50'}`}><UploadCloud className="w-3.5 h-3.5 md:w-4 md:h-4" /> Upload Files</button>
                   </div>
                   <form onSubmit={handleIngest} className="flex flex-col gap-4 md:gap-5">
+                    {collections.length > 0 && (
+                      <div>
+                        <label className="block text-[10px] md:text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5 md:mb-2">Collection (optional)</label>
+                        <select value={ingestCollectionId} onChange={(e) => setIngestCollectionId(e.target.value)} className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl py-2 md:py-3 px-3 md:px-4 text-xs md:text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500 transition-all">
+                          <option value="">No collection</option>
+                          {collections.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+                        </select>
+                      </div>
+                    )}
                     <div>
                       <label className="block text-[10px] md:text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1.5 md:mb-2">Document Title</label>
                       <input type="text" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} placeholder="e.g., Company Handbook" className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-300 dark:border-neutral-800 rounded-xl py-2 md:py-3 px-3 md:px-4 text-xs md:text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500 transition-all" />
