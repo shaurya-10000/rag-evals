@@ -3,6 +3,7 @@ import uuid
 from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from google.genai import errors as genai_errors
 from pypdf import PdfReader
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile as StarletteUploadFile
@@ -101,6 +102,8 @@ async def ingest(
         )
         logger.info(f"[{request_id}] Ingest done. doc_id={doc.id}")
         return IngestResponse(document_id=doc.id, status="ingested")
+    except genai_errors.APIError:
+        raise
     except Exception as e:
         logger.error(f"[{request_id}] Ingest failed: {type(e).__name__} - {e}")
-        raise HTTPException(status_code=500, detail=f"Ingest error: {e}") from e
+        raise HTTPException(status_code=500, detail="Ingest failed. Please try again.") from e

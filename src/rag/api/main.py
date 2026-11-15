@@ -3,7 +3,9 @@ import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from google.genai import errors as genai_errors
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -35,6 +37,18 @@ app.include_router(auth_router)
 app.include_router(ingest.router)
 app.include_router(query.router)
 app.include_router(title.router)
+
+
+@app.exception_handler(genai_errors.APIError)
+async def ai_service_error_handler(request: Request, exc: genai_errors.APIError) -> JSONResponse:
+    logger.error("Gemini API error code=%s path=%s: %s", exc.code, request.url.path, exc)
+    if exc.code == 429:
+        detail = "The AI service is busy right now. Please try again in a minute."
+        return JSONResponse(status_code=503, content={"detail": detail})
+    return JSONResponse(
+        status_code=502,
+        content={"detail": "The AI service had a problem. Please try again."},
+    )
 
 
 @app.get("/health")

@@ -31,12 +31,30 @@ def fixture_key(kind: str, text: str) -> str:
     return hashlib.sha256(f"{kind}:{text}".encode()).hexdigest()
 
 
+MAX_RETRY_DELAY = 20.0  # never sleep longer than this between attempts (seconds)
+
+
+def _server_retry_delay(error: errors.APIError) -> float | None:
+    """Seconds the API asks us to wait (RetryInfo.retryDelay, e.g. "16s"), if present."""
+    payload = getattr(error, "details", None)
+    if not isinstance(payload, dict):
+        return None
+    inner = payload.get("error", payload)
+    items = inner.get("details", []) if isinstance(inner, dict) else []
+    for item in items:
+        if isinstance(item, dict) and str(item.get("@type", "")).endswith("RetryInfo"):
+            match = re.fullmatch(r"(\d+(?:\.\d+)?)s", str(item.get("retryDelay", "")))
+            if match:
+                return float(match.group(1))
+    return None
+
+
 class Embedder:
     def __init__(
         self,
         model: str = "gemini-embedding-001",
         mock: bool = False,
-        max_attempts: int = 5,
+        max_attempts: int = 6,
         base_delay: float = 1.0,
         fixture_path: Path | None = None,
     ):
@@ -73,6 +91,9 @@ class Embedder:
                 if not retryable or attempt == self.max_attempts:
                     raise
                 delay = self.base_delay * (2 ** (attempt - 1))
+                server_delay = _server_retry_delay(e)
+                if server_delay is not None:
+                    delay = min(max(delay, server_delay + 0.5), MAX_RETRY_DELAY)
                 logger.warning(
                     "embedding failed code=%s attempt=%d/%d, retrying in %.1fs",
                     e.code,
