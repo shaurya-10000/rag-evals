@@ -1,5 +1,3 @@
-import uuid
-
 from fastapi.testclient import TestClient
 
 from rag.api.deps import get_embedder, get_generator, get_reranker
@@ -25,18 +23,9 @@ def test_health_check():
     assert response.json() == {"status": "ok"}
 
 
-def test_ingest_and_query():
-    # Sign up a unique user for this test
-    uniq = uuid.uuid4().hex[:8]
-    signup = client.post(
-        "/auth/register",
-        json={
-            "email": f"test_{uniq}@example.com",
-            "username": f"testuser_{uniq}",
-            "password": "testpassword123",
-        },
-    )
-    assert signup.status_code == 200, signup.text
+def test_ingest_and_query(verified_login):
+    # Sign up a unique user, verify their email, and log in
+    verified_login(client)
 
     ingest_payload = {
         "title": "API Test Document",
