@@ -1,26 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
+import { NextRequest, NextResponse } from 'next/server';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-change-in-production';
+const PUBLIC_PREFIXES = ['/sign-in', '/sign-up', '/api/auth'] as const;
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+function redirectToSignIn(req: NextRequest): NextResponse {
+  return NextResponse.redirect(new URL('/sign-in', req.url));
+}
 
 export async function proxy(req: NextRequest) {
-  const { pathname } = req.nextUrl;
-  
-  if (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up') || pathname.startsWith('/api/auth')) {
-    return NextResponse.next();
+  if (isPublicPath(req.nextUrl.pathname)) return NextResponse.next();
+
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    console.error('proxy: JWT_SECRET is not set for this environment');
+    return new NextResponse('Server misconfigured', { status: 500 });
   }
-  
+
   const token = req.cookies.get('access_token')?.value;
-  
-  if (!token) {
-    return NextResponse.redirect(new URL('/sign-in', req.url));
-  }
-  
+  if (!token) return redirectToSignIn(req);
+
   try {
-    await jwtVerify(token, new TextEncoder().encode(JWT_SECRET));
+    await jwtVerify(token, new TextEncoder().encode(secret));
     return NextResponse.next();
   } catch {
-    return NextResponse.redirect(new URL('/sign-in', req.url));
+    return redirectToSignIn(req);
   }
 }
 

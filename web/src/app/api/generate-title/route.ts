@@ -1,10 +1,10 @@
-import { getApiKey } from '../../../lib/server-env';
+import { getApiKey, getBackendUrl } from '../../../lib/server-env';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
     const { prompt } = await req.json();
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
+    const backendUrl = getBackendUrl();
     const apiKey = getApiKey();
     if (!apiKey) {
       return NextResponse.json({ title: 'New Chat' }, { status: 200 });

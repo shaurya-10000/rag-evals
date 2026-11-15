@@ -1,8 +1,9 @@
+import { getBackendUrl } from '../../../../lib/server-env';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
+  const backendUrl = getBackendUrl();
 
   try {
     const response = await fetch(backendUrl + '/auth/register', {
