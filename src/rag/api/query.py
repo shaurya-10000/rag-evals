@@ -11,14 +11,23 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import Session
 
-from rag.api.deps import get_embedder, get_generator, get_reranker, limiter, verify_api_key
+from rag.api.deps import (
+    get_embedder,
+    get_generator,
+    get_reranker,
+    get_rewriter,
+    limiter,
+    verify_api_key,
+)
 from rag.api.schemas import QueryRequest
 from rag.auth.utils import get_current_user
 from rag.chat_repository import ConversationRepository
 from rag.db import get_db
-from rag.db_models import Chunk, User
+from rag.db_models import Chunk, Conversation, User
 from rag.generate.generator import Generator
+from rag.generate.relevance import should_refuse
 from rag.generate.reranker import Reranker
+from rag.generate.rewriter import MAX_HISTORY_MESSAGES, HistoryMessage, QueryRewriter
 from rag.retrieve.embedder import Embedder
 from rag.retrieve.retriever import Retriever
 
@@ -38,6 +47,14 @@ def _source_payload(chunk: Chunk) -> dict[str, Any]:
         "content": chunk.content,
         "metadata": chunk.metadata_col,
     }
+
+
+def _history(conversation: Conversation | None) -> list[HistoryMessage]:
+    """Recent messages of the conversation, taken before the new question is stored."""
+    if conversation is None:
+        return []
+    recent = list(conversation.messages)[-MAX_HISTORY_MESSAGES:]
+    return [HistoryMessage(role=m.role, content=m.content) for m in recent]
 
 
 def _persist_assistant_message(
@@ -70,6 +87,7 @@ def query(
     embedder: Embedder = Depends(get_embedder),
     generator: Generator = Depends(get_generator),
     reranker: Reranker = Depends(get_reranker),
+    rewriter: QueryRewriter = Depends(get_rewriter),
     _: str = Depends(verify_api_key),
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
@@ -78,21 +96,39 @@ def query(
 
     conversation_id = payload.conversation_id
     conversations = ConversationRepository(db)
-    if conversation_id is not None and conversations.get(current_user.id, conversation_id) is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+    conversation: Conversation | None = None
+    if conversation_id is not None:
+        conversation = conversations.get(current_user.id, conversation_id)
+        if conversation is None:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+    history = _history(conversation)
 
     t_start = time.perf_counter()
+    # Follow-ups like "what about its pricing?" need the conversation to be searchable.
+    search_query = rewriter.rewrite(payload.query, history)
+    rewritten = search_query != payload.query
+    if rewritten:
+        logger.info(f"[{request_id}] Rewrote query -> '{search_query[:80]}'")
+    t_rewrite = time.perf_counter()
+
     retriever = Retriever(db=db, embedder=embedder)
     candidates = retriever.search(
-        query=payload.query,
+        query=search_query,
         user_id=current_user.id,
         top_k=RERANK_CANDIDATES,
         collection_id=payload.collection_id,
     )
     t_retrieve = time.perf_counter()
 
-    final_chunks = reranker.rerank(query=payload.query, chunks=candidates, top_k=payload.top_k)
+    final_chunks, best_score = reranker.rerank_scored(
+        query=search_query, chunks=candidates, top_k=payload.top_k
+    )
+    refused = should_refuse(best_score)
+    if refused:
+        # Nothing relevant: skip generation (saves quota) and say so instead of guessing.
+        final_chunks = []
     t_rerank = time.perf_counter()
+    logger.info(f"[{request_id}] best_rerank_score={best_score} refused={refused}")
 
     sources = [_source_payload(c) for c in final_chunks]
     bind = db.get_bind()
@@ -106,7 +142,7 @@ def query(
         try:
             yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
             try:
-                for text_chunk in generator.stream_answer(query=payload.query, chunks=final_chunks):
+                for text_chunk in generator.stream_answer(query=search_query, chunks=final_chunks):
                     answer_parts.append(text_chunk)
                     yield f"data: {json.dumps({'type': 'token', 'text': text_chunk})}\n\n"
             except Exception as e:
@@ -116,12 +152,19 @@ def query(
             t_generate = time.perf_counter()
 
             timings = (
-                f"retrieve={_ms(t_start, t_retrieve)}ms "
+                f"rewrite={_ms(t_start, t_rewrite)}ms "
+                f"retrieve={_ms(t_rewrite, t_retrieve)}ms "
                 f"rerank={_ms(t_retrieve, t_rerank)}ms "
                 f"generate={_ms(t_rerank, t_generate)}ms"
             )
             logger.info(f"[{request_id}] Done. {timings}")
-            yield f"data: {json.dumps({'type': 'done', 'timings': timings})}\n\n"
+            done = {
+                "type": "done",
+                "timings": timings,
+                "rewritten_query": search_query if rewritten else None,
+                "refused": refused,
+            }
+            yield f"data: {json.dumps(done)}\n\n"
         finally:
             # Runs on success, on stream errors and when the client disconnects mid-answer.
             answer = "".join(answer_parts)

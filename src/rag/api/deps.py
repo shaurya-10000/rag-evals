@@ -10,6 +10,7 @@ from slowapi.util import get_remote_address
 from rag.config.settings import settings
 from rag.generate.generator import Generator
 from rag.generate.reranker import Reranker
+from rag.generate.rewriter import QueryRewriter
 from rag.retrieve.embedder import Embedder
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
@@ -38,3 +39,9 @@ def get_generator() -> Generator:
 def get_reranker() -> Reranker:
     enabled = os.getenv("RERANK_ENABLED", "true").lower() != "false"
     return Reranker(mock=not enabled)
+
+
+@lru_cache(maxsize=1)
+def get_rewriter() -> QueryRewriter:
+    # Without a real Gemini key (tests, CI) skip rewriting instead of waiting on timeouts.
+    return QueryRewriter(mock=settings.GEMINI_API_KEY == "fake-key")

@@ -32,19 +32,26 @@ class Reranker:
             )
         return self._model
 
-    def rerank(self, query: str, chunks: list[Chunk], top_k: int = 3) -> list[Chunk]:
+    def rerank_scored(
+        self, query: str, chunks: list[Chunk], top_k: int = 3
+    ) -> tuple[list[Chunk], float | None]:
+        """Return the selected chunks and the best relevance score (None when unscored)."""
         if self.mock or not chunks:
-            return chunks[:top_k]
+            return chunks[:top_k], None
 
         model = self._get_model()
-        scores = list(model.rerank(query, [chunk.content for chunk in chunks]))
+        scores = [float(s) for s in model.rerank(query, [chunk.content for chunk in chunks])]
 
         ranked = sorted(zip(chunks, scores, strict=True), key=lambda pair: pair[1], reverse=True)
+        best_score = ranked[0][1]
 
-        THRESHOLD = float(os.getenv("RERANK_SCORE_THRESHOLD", "0.0"))
-        filtered = [chunk for chunk, score in ranked if score >= THRESHOLD]
+        threshold = float(os.getenv("RERANK_SCORE_THRESHOLD", "0.0"))
+        filtered = [chunk for chunk, score in ranked if score >= threshold]
 
-        if not filtered and ranked:
-            return [ranked[0][0]]
+        if not filtered:
+            return [ranked[0][0]], best_score
 
-        return filtered[:top_k]
+        return filtered[:top_k], best_score
+
+    def rerank(self, query: str, chunks: list[Chunk], top_k: int = 3) -> list[Chunk]:
+        return self.rerank_scored(query, chunks, top_k)[0]
