@@ -110,7 +110,12 @@ export default function Home() {
             onSend={(text) => void chat.send(text)}
             onOpenDocument={(documentId) => goToTab('documents', documentId)}
           />
-          <IngestTab active={activeTab === 'ingest'} collections={collections} onIngested={refreshCollections} />
+          <IngestTab
+            active={activeTab === 'ingest'}
+            collections={collections}
+            onIngested={refreshCollections}
+            onOpenDocument={(documentId) => goToTab('documents', documentId)}
+          />
           {activeTab === 'documents' && (
             <DocumentsTab
               collections={collections}
