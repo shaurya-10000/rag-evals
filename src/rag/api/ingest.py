@@ -1,10 +1,8 @@
 import logging
 import uuid
-from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from google.genai import errors as genai_errors
-from pypdf import PdfReader
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
@@ -14,39 +12,37 @@ from rag.api.vision import VisionError, describe_image
 from rag.auth.utils import get_current_user
 from rag.db import get_db
 from rag.db_models import User
+from rag.ingest.extractors import (
+    IMAGE_EXTENSIONS,
+    MAX_UPLOAD_BYTES,
+    ExtractionError,
+    extract_pdf,
+    extract_upload_text,
+)
 from rag.repository import DocumentRepository
 from rag.retrieve.embedder import Embedder
 
 logger = logging.getLogger("rag.api.ingest")
 router = APIRouter()
 
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
-
 
 def _extract_pdf_text(contents: bytes) -> str:
     try:
-        reader = PdfReader(BytesIO(contents))
-        pages = (page.extract_text() for page in reader.pages)
-        return "\n".join(text for text in pages if text)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail="Invalid PDF file") from e
+        return extract_pdf(contents)
+    except ExtractionError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
 
 def _extract_upload_text(filename: str, contents: bytes) -> str:
-    if filename.endswith(".pdf"):
-        return _extract_pdf_text(contents)
     if filename.endswith(IMAGE_EXTENSIONS):
         try:
             return describe_image(filename, contents)
         except VisionError as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
     try:
-        return contents.decode("utf-8")
-    except UnicodeDecodeError:
-        raise HTTPException(
-            status_code=400, detail="File must be UTF-8 text, PDF, or Image"
-        ) from None
+        return extract_upload_text(filename, contents)
+    except ExtractionError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
 
 async def _read_payload(request: Request) -> tuple[str, str, str]:
