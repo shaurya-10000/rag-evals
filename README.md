@@ -330,7 +330,6 @@ pytest tests/
 - **Cold starts on Render.** The free tier spins down after 15 minutes. First request takes ~30s.
 - **Free-tier Gemini quotas.** Vision and generation have strict daily limits on the free tier. The CI Eval Gate uses mock fixtures to bypass this.
 - **Email limits.** Verification and reset emails go through Brevo's free tier (~300/day, one verified sender address).
-- **Google is the only OAuth provider.** GitHub sign-in is not supported.
 - **Edits re-embed the whole document.** Large edits cost Gemini embedding calls and count against free-tier quotas.
 
 ## Roadmap
