@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 from sqlalchemy import func
@@ -8,6 +9,10 @@ from sqlalchemy.orm import Session
 from rag.db_models import Chunk, Collection, Document
 from rag.ingest.pipeline import DEFAULT_CHUNK_SIZE, DocumentChunker, IngestionPipeline
 from rag.retrieve.embedder import Embedder
+
+EMBED_BATCH_SIZE = 50  # the embedding API caps how many texts one call may carry
+
+ProgressCallback = Callable[[int, int], None]
 
 
 class DuplicateDocumentError(Exception):
@@ -29,6 +34,29 @@ class DocumentRepository:
         self.chunker = DocumentChunker(chunk_size=DEFAULT_CHUNK_SIZE)
 
     # ------------------------------------------------------------ ingest
+    def find_existing(self, user_id: uuid.UUID, text: str) -> Document | None:
+        """The user's document with identical text, if it was already ingested."""
+        content_hash = IngestionPipeline.compute_hash(text)
+        return (
+            self.db.query(Document)
+            .filter(Document.content_hash == content_hash, Document.user_id == user_id)
+            .first()
+        )
+
+    def _embed_in_batches(
+        self, texts: list[str], on_progress: ProgressCallback | None = None
+    ) -> list[list[float]]:
+        """Embed in small batches: the API caps texts per call, and progress needs steps."""
+        total = len(texts)
+        embeddings: list[list[float]] = []
+        if on_progress is not None:
+            on_progress(0, total)
+        for start in range(0, total, EMBED_BATCH_SIZE):
+            embeddings.extend(self.embedder.embed_texts(texts[start : start + EMBED_BATCH_SIZE]))
+            if on_progress is not None:
+                on_progress(len(embeddings), total)
+        return embeddings
+
     def ingest_document(
         self,
         user_id: uuid.UUID,
@@ -36,18 +64,18 @@ class DocumentRepository:
         text: str,
         source_url: str | None = None,
         collection_id: uuid.UUID | None = None,
+        on_progress: ProgressCallback | None = None,
     ) -> Document:
-        pipeline = IngestionPipeline(chunker=self.chunker)
-        data = pipeline.process_document(title, text, source_url)
-        content_hash = data["content_hash"]
+        data = IngestionPipeline(chunker=self.chunker).process_document(title, text, source_url)
 
-        existing = (
-            self.db.query(Document)
-            .filter(Document.content_hash == content_hash, Document.user_id == user_id)
-            .first()
-        )
+        existing = self.find_existing(user_id, text)
         if existing:
             return existing
+        # Release the read transaction: embedding can take a while and needs no DB connection.
+        self.db.commit()
+
+        chunks_data = data["chunks"]
+        embeddings = self._embed_in_batches([c["content"] for c in chunks_data], on_progress)
 
         doc = Document(
             user_id=user_id,
@@ -55,25 +83,29 @@ class DocumentRepository:
             title=title,
             source_url=source_url,
             content=text,
-            content_hash=content_hash,
+            content_hash=data["content_hash"],
         )
-        self.db.add(doc)
-        self.db.flush()
+        try:
+            self.db.add(doc)
+            self.db.flush()
+            for chunk_info, embedding in zip(chunks_data, embeddings, strict=True):
+                self.db.add(
+                    Chunk(
+                        document_id=doc.id,
+                        content=chunk_info["content"],
+                        embedding=embedding,
+                        metadata_col=chunk_info["metadata"],
+                    )
+                )
+            self.db.commit()
+        except IntegrityError:
+            # A concurrent request ingested the same text first.
+            self.db.rollback()
+            raced = self.find_existing(user_id, text)
+            if raced is None:
+                raise
+            return raced
 
-        chunks_data = data["chunks"]
-        chunks_text = [c["content"] for c in chunks_data]
-        embeddings = self.embedder.embed_texts(chunks_text)
-
-        for chunk_info, embedding in zip(chunks_data, embeddings, strict=True):
-            chunk = Chunk(
-                document_id=doc.id,
-                content=chunk_info["content"],
-                embedding=embedding,
-                metadata_col=chunk_info["metadata"],
-            )
-            self.db.add(chunk)
-
-        self.db.commit()
         self.db.refresh(doc)
         return doc
 
@@ -166,7 +198,7 @@ class DocumentRepository:
 
         chunks_data = data["chunks"]
         # Embed BEFORE deleting anything, so an API failure leaves the old chunks intact.
-        embeddings = self.embedder.embed_texts([c["content"] for c in chunks_data])
+        embeddings = self._embed_in_batches([c["content"] for c in chunks_data])
 
         try:
             self.db.query(Chunk).filter(Chunk.document_id == doc.id).delete(

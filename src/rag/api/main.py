@@ -9,9 +9,11 @@ from google.genai import errors as genai_errors
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from rag.api import conversations, documents, ingest, query, title
+from rag.api import conversations, documents, ingest, ingest_jobs, query, title
 from rag.api.auth import router as auth_router
 from rag.api.deps import get_reranker, limiter
+from rag.db import engine
+from rag.ingest.jobs import fail_interrupted_jobs, shutdown_workers
 
 logging.basicConfig(
     level=logging.INFO,
@@ -26,7 +28,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Pre-loading reranker model into memory...")
         get_reranker()._get_model()
         logger.info("Reranker model loaded successfully.")
+    fail_interrupted_jobs(engine)
     yield
+    shutdown_workers()
 
 
 app = FastAPI(title="RAG Evals API", version="0.1.0", lifespan=lifespan)
@@ -35,6 +39,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # ty
 
 app.include_router(auth_router)
 app.include_router(ingest.router)
+app.include_router(ingest_jobs.router)
 app.include_router(query.router)
 app.include_router(title.router)
 app.include_router(documents.router)

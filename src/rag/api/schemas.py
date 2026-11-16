@@ -126,3 +126,19 @@ class ImportRequest(BaseModel):
 
 class ImportResponse(BaseModel):
     imported: int
+
+
+# ---------------------------------------------------------------- ingest jobs
+class IngestJobOut(BaseModel):
+    id: UUID
+    kind: str
+    title: str
+    status: str
+    stage: str
+    progress_done: int
+    progress_total: int
+    document_id: UUID | None
+    duplicate: bool
+    error: str | None
+    created_at: datetime
+    finished_at: datetime | None
