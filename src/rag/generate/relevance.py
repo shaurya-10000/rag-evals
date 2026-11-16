@@ -4,7 +4,7 @@ import os
 
 # Cross-encoder (ms-marco MiniLM) scores are logits: clearly irrelevant passages
 # land well below zero. Tune with REFUSAL_MIN_SCORE after checking the logged scores.
-DEFAULT_REFUSAL_MIN_SCORE = -5.0
+DEFAULT_REFUSAL_MIN_SCORE = -8.0
 
 
 def refusal_min_score() -> float:
