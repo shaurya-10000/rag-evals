@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useCallback } from 'react';
-import { Check, Copy, Database, Layers, Loader2, Square, User, Volume2 } from 'lucide-react';
+import { Check, Copy, Database, Info, Layers, Loader2, Search, Square, User, Volume2 } from 'lucide-react';
 import type { ChatMessage, Source } from '@/lib/chat-types';
 import { AssistantMarkdown } from './assistant-markdown';
 
@@ -71,6 +71,25 @@ export const MessageItem = memo(function MessageItem({
                 </>
               )}
             </div>
+
+            {!message.isStreaming && message.refused && (
+              <p className="mt-2 flex items-start gap-1.5 text-[10px] md:text-xs text-amber-600 dark:text-amber-400">
+                <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
+                <span>
+                  Nothing relevant was found in your documents for this question. Try adding documents or
+                  searching in a different collection.
+                </span>
+              </p>
+            )}
+
+            {!message.isStreaming && message.rewrittenQuery && (
+              <p className="mt-2 flex items-start gap-1.5 text-[10px] md:text-xs text-neutral-500">
+                <Search className="w-3.5 h-3.5 shrink-0 mt-px" />
+                <span>
+                  Searched for: <span className="italic">{message.rewrittenQuery}</span>
+                </span>
+              </p>
+            )}
 
             {!message.isStreaming && message.content && (
               <div className="mt-2 flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">

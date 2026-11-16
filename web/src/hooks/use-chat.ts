@@ -161,6 +161,12 @@ export function useChat({ scopeCollectionId, createConversation, onFirstMessage 
             patchLast(conversationId, (m) => ({ ...m, sources: event.sources }));
           } else if (event.type === 'token') {
             patchLast(conversationId, (m) => ({ ...m, content: m.content + event.text }));
+          } else if (event.type === 'done') {
+            patchLast(conversationId, (m) => ({
+              ...m,
+              rewrittenQuery: event.rewritten_query ?? null,
+              refused: event.refused ?? false,
+            }));
           } else if (event.type === 'error') {
             patchLast(conversationId, (m) => ({
               ...m,

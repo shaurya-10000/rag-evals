@@ -13,6 +13,10 @@ export type ChatMessage = {
   content: string;
   sources?: Source[];
   isStreaming?: boolean;
+  /** Standalone query the follow-up was rewritten into (live answers only). */
+  rewrittenQuery?: string | null;
+  /** True when nothing relevant was found and the answer was withheld (live answers only). */
+  refused?: boolean;
 };
 
 export type Conversation = {

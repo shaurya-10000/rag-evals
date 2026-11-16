@@ -3,7 +3,7 @@ import type { Source } from './chat-types';
 export type StreamEvent =
   | { type: 'sources'; sources: Source[] }
   | { type: 'token'; text: string }
-  | { type: 'done'; timings?: string }
+  | { type: 'done'; timings?: string; rewritten_query?: string | null; refused?: boolean }
   | { type: 'error'; message: string };
 
 const KNOWN_TYPES = new Set(['sources', 'token', 'done', 'error']);
