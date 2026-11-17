@@ -1,9 +1,10 @@
 'use client';
 
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { Check, Copy, Database, Info, Layers, Loader2, Search, Square, User, Volume2 } from 'lucide-react';
 import type { ChatMessage, Source } from '@/lib/chat-types';
 import { AssistantMarkdown } from './assistant-markdown';
+import { FeedbackButtons, FeedbackReasons } from './feedback-controls';
 
 type Props = {
   message: ChatMessage;
@@ -13,6 +14,7 @@ type Props = {
   onCopy: (text: string, key: string) => void;
   onSpeak: (text: string, key: string) => void;
   onOpenSource: (sources: Source[], sourceNumber: number) => void;
+  onFeedback: (messageId: string, rating: 1 | -1 | null, comment?: string | null) => void;
 };
 
 const EMPTY_SOURCES: Source[] = [];
@@ -28,15 +30,35 @@ export const MessageItem = memo(function MessageItem({
   onCopy,
   onSpeak,
   onOpenSource,
+  onFeedback,
 }: Props) {
+  const [askReason, setAskReason] = useState(false);
   const isUser = message.role === 'user';
   const sources = message.sources ?? EMPTY_SOURCES;
   const isThinking = !isUser && message.content === '' && message.isStreaming;
+  const messageId = message.messageId;
 
   const handleCite = useCallback(
     (sourceNumber: number) => onOpenSource(sources, sourceNumber),
     [onOpenSource, sources]
   );
+
+  const handleRate = (next: 1 | -1) => {
+    if (!messageId) return;
+    if (message.feedback === next) {
+      setAskReason(false);
+      onFeedback(messageId, null);
+      return;
+    }
+    setAskReason(next === -1);
+    onFeedback(messageId, next);
+  };
+
+  const handleReason = (reason: string) => {
+    if (!messageId) return;
+    setAskReason(false);
+    onFeedback(messageId, -1, reason);
+  };
 
   return (
     <div className={`flex gap-2 md:gap-4 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
@@ -115,7 +137,12 @@ export const MessageItem = memo(function MessageItem({
                     </>
                   )}
                 </button>
+                {messageId && <FeedbackButtons rating={message.feedback} onRate={handleRate} buttonClass={actionBtn} />}
               </div>
+            )}
+
+            {!message.isStreaming && askReason && message.feedback === -1 && (
+              <FeedbackReasons onPick={handleReason} />
             )}
 
             {sources.length > 0 && (

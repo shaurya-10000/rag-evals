@@ -22,6 +22,7 @@ type Props = {
   scopeCollectionId: string;
   onScopeChange: (id: string) => void;
   onSend: (text: string) => void;
+  onFeedback: (messageId: string, rating: 1 | -1 | null, comment?: string | null) => void;
   onOpenDocument: (documentId: string) => void;
 };
 
@@ -39,6 +40,7 @@ export function ChatTab({
   scopeCollectionId,
   onScopeChange,
   onSend,
+  onFeedback,
   onOpenDocument,
 }: Props) {
   const [input, setInput] = useState('');
@@ -160,6 +162,7 @@ export function ChatTab({
                     onCopy={handleCopy}
                     onSpeak={handleSpeak}
                     onOpenSource={handleOpenSource}
+                    onFeedback={onFeedback}
                   />
                 );
               })}

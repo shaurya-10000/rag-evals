@@ -1,14 +1,15 @@
 'use client';
 
-import { Database, FileText, Layers, MessageSquare, PanelLeftOpen, type LucideIcon } from 'lucide-react';
+import { Database, FileText, Gauge, Layers, MessageSquare, PanelLeftOpen, type LucideIcon } from 'lucide-react';
 import { UserMenu } from '@/components/user-menu';
 
-export type AppTab = 'chat' | 'ingest' | 'documents';
+export type AppTab = 'chat' | 'ingest' | 'documents' | 'usage';
 
 const TABS: { id: AppTab; label: string; icon: LucideIcon }[] = [
   { id: 'chat', label: 'Chat', icon: MessageSquare },
   { id: 'ingest', label: 'Knowledge Base', icon: Database },
   { id: 'documents', label: 'Documents', icon: FileText },
+  { id: 'usage', label: 'Usage', icon: Gauge },
 ];
 
 const TAB_BASE = 'flex items-center gap-1.5 md:gap-2 px-3 md:px-6 py-1.5 md:py-2 text-xs md:text-sm font-medium rounded-full';

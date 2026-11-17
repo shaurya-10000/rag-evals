@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatMessage, Conversation, MessageDTO } from '@/lib/chat-types';
-import { getConversation } from '@/lib/conversations-api';
+import { clearMessageFeedback, getConversation, setMessageFeedback } from '@/lib/conversations-api';
 import { readSse } from '@/lib/sse';
 
 const TITLE_MAX_CHARS = 30;
@@ -19,6 +19,11 @@ const toChatMessage = (m: MessageDTO): ChatMessage => ({
   role: m.role,
   content: m.content,
   sources: m.sources,
+  messageId: m.id,
+  rewrittenQuery: m.rewritten_query ?? null,
+  refused: m.refused ?? false,
+  feedback: m.feedback ?? null,
+  feedbackComment: m.feedback_comment ?? null,
 });
 
 const draftTitle = (query: string) =>
@@ -46,6 +51,11 @@ export function useChat({ scopeCollectionId, createConversation, onFirstMessage 
   const activeIdRef = useRef<string | null>(null);
   const streamingRef = useRef(new Set<string>());
   const loadedRef = useRef(new Set<string>());
+  const messagesRef = useRef<Record<string, ChatMessage[]>>({});
+
+  useEffect(() => {
+    messagesRef.current = messagesById;
+  });
 
   const activate = useCallback((id: string | null) => {
     activeIdRef.current = id;
@@ -164,6 +174,7 @@ export function useChat({ scopeCollectionId, createConversation, onFirstMessage 
           } else if (event.type === 'done') {
             patchLast(conversationId, (m) => ({
               ...m,
+              messageId: event.message_id ?? m.messageId,
               rewrittenQuery: event.rewritten_query ?? null,
               refused: event.refused ?? false,
             }));
@@ -192,6 +203,33 @@ export function useChat({ scopeCollectionId, createConversation, onFirstMessage 
     [scopeCollectionId, createConversation, onFirstMessage, activate, patchMessages, patchLast, setStreaming]
   );
 
+  /** Optimistic: shows the rating right away and rolls back if saving fails. */
+  const setFeedback = useCallback(
+    async (messageId: string, rating: 1 | -1 | null, comment: string | null = null) => {
+      const conversationId = activeIdRef.current;
+      if (!conversationId) return;
+
+      const previous = messagesRef.current[conversationId]?.find((m) => m.messageId === messageId);
+      const update = (feedback: 1 | -1 | null | undefined, feedbackComment: string | null | undefined) =>
+        setMessagesById((prev) => ({
+          ...prev,
+          [conversationId]: (prev[conversationId] ?? []).map((m) =>
+            m.messageId === messageId ? { ...m, feedback, feedbackComment } : m
+          ),
+        }));
+
+      update(rating, rating === null ? null : comment);
+      try {
+        if (rating === null) await clearMessageFeedback(conversationId, messageId);
+        else await setMessageFeedback(conversationId, messageId, rating, comment);
+      } catch {
+        update(previous?.feedback, previous?.feedbackComment);
+        setError('Could not save your feedback. Please try again.');
+      }
+    },
+    []
+  );
+
   const messages = activeId ? (messagesById[activeId] ?? []) : [];
   const isStreaming = activeId ? Boolean(streamingById[activeId]) : false;
 
@@ -205,5 +243,6 @@ export function useChat({ scopeCollectionId, createConversation, onFirstMessage 
     startNewChat,
     selectConversation,
     discardConversation,
+    setFeedback,
   };
 }

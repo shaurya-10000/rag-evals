@@ -2,8 +2,12 @@
 
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Edit2, MoreVertical, PanelLeftClose, Pin, Plus, Trash2 } from 'lucide-react';
+import { Download, Edit2, MoreVertical, PanelLeftClose, Pin, Plus, Share2, Trash2 } from 'lucide-react';
+import { useChatSearch } from '@/hooks/use-chat-search';
 import type { Conversation } from '@/lib/chat-types';
+import { exportConversationMarkdown } from '@/lib/export-chat';
+import { SearchBox, SearchResults } from './chat-search';
+import { ShareDialog } from './share-dialog';
 
 type Props = {
   open: boolean;
@@ -39,6 +43,10 @@ export function ChatSidebar({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [shareFor, setShareFor] = useState<Conversation | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const search = useChatSearch(query);
 
   // Stable sort: pinned first, server order (most recent activity) otherwise.
   const sorted = [...conversations].sort((a, b) => Number(b.pinned) - Number(a.pinned));
@@ -52,6 +60,23 @@ export function ChatSidebar({
     setMenuOpenId(null);
     if (window.confirm('Delete this chat permanently? This cannot be undone.')) onDelete(id);
   };
+
+  const handleExport = async (chat: Conversation) => {
+    setMenuOpenId(null);
+    setActionError(null);
+    try {
+      await exportConversationMarkdown(chat.id);
+    } catch {
+      setActionError('Could not export this chat. Please try again.');
+    }
+  };
+
+  const selectFromSearch = (id: string) => {
+    setQuery('');
+    onSelect(id);
+  };
+
+  const shownError = actionError ?? error;
 
   return (
     <>
@@ -90,9 +115,17 @@ export function ChatSidebar({
               </div>
             </div>
 
+            <SearchBox value={query} onChange={setQuery} />
+
             <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin">
-              {error && <div className="mx-1 mb-2 p-2 rounded-lg text-[10px] text-center bg-red-500/10 text-red-500 border border-red-500/20">{error}</div>}
-              {loading ? (
+              {shownError && (
+                <div className="mx-1 mb-2 p-2 rounded-lg text-[10px] text-center bg-red-500/10 text-red-500 border border-red-500/20">
+                  {shownError}
+                </div>
+              )}
+              {search.active ? (
+                <SearchResults hits={search.hits} loading={search.loading} error={search.error} onSelect={selectFromSearch} />
+              ) : loading ? (
                 <div className="text-xs text-center text-neutral-500 py-4 mt-4">Loading chats...</div>
               ) : sorted.length === 0 ? (
                 <div className="text-xs text-center text-neutral-500 py-4 mt-4">No chats yet.</div>
@@ -133,11 +166,12 @@ export function ChatSidebar({
                             setMenuOpenId(menuOpenId === chat.id ? null : chat.id);
                           }}
                           className="p-1 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-md"
+                          aria-label="Chat actions"
                         >
                           <MoreVertical className="w-3.5 h-3.5" />
                         </button>
                         {menuOpenId === chat.id && (
-                          <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-xl z-50 overflow-hidden py-1">
+                          <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-xl z-50 overflow-hidden py-1">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -162,6 +196,25 @@ export function ChatSidebar({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
+                                setMenuOpenId(null);
+                                setShareFor(chat);
+                              }}
+                              className={menuItem}
+                            >
+                              <Share2 className="w-3 h-3" /> Share link
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleExport(chat);
+                              }}
+                              className={menuItem}
+                            >
+                              <Download className="w-3 h-3" /> Export Markdown
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 confirmDelete(chat.id);
                               }}
                               className={`${menuItem} text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10`}
@@ -179,6 +232,9 @@ export function ChatSidebar({
           </motion.aside>
         )}
       </AnimatePresence>
+
+      {/* Outside the animated aside: a transformed parent would break position: fixed. */}
+      {shareFor && <ShareDialog conversation={shareFor} onClose={() => setShareFor(null)} />}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import type { Conversation, ConversationDetail } from './chat-types';
+import type { Conversation, ConversationDetail, SearchHit, ShareInfo } from './chat-types';
 import type { ImportConversation } from './legacy-chats';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -39,3 +39,27 @@ export const deleteConversation = (id: string) =>
 
 export const importConversations = (conversations: ImportConversation[]) =>
   request<{ imported: number }>('/api/conversations/import', json('POST', { conversations }));
+
+export const searchConversations = (query: string) =>
+  request<SearchHit[]>(`/api/search/conversations?q=${encodeURIComponent(query)}`);
+
+export const getShare = (id: string) => request<ShareInfo>(`${path(id)}/share`);
+
+export const createShare = (id: string) => request<ShareInfo>(`${path(id)}/share`, json('POST', {}));
+
+export const deleteShare = (id: string) => request<ShareInfo>(`${path(id)}/share`, { method: 'DELETE' });
+
+type FeedbackResult = { message_id: string; rating: number | null; comment: string | null };
+
+const feedbackPath = (conversationId: string, messageId: string) =>
+  `${path(conversationId)}/messages/${encodeURIComponent(messageId)}/feedback`;
+
+export const setMessageFeedback = (
+  conversationId: string,
+  messageId: string,
+  rating: 1 | -1,
+  comment: string | null
+) => request<FeedbackResult>(feedbackPath(conversationId, messageId), json('PUT', { rating, comment }));
+
+export const clearMessageFeedback = (conversationId: string, messageId: string) =>
+  request<FeedbackResult>(feedbackPath(conversationId, messageId), { method: 'DELETE' });

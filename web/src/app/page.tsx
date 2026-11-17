@@ -6,6 +6,7 @@ import { ChatSidebar } from '@/components/chat/chat-sidebar';
 import { ChatTab } from '@/components/chat/chat-tab';
 import { DocumentsTab, type CollectionInfo } from '@/components/documents-tab';
 import { IngestTab } from '@/components/ingest/ingest-tab';
+import { UsageTab } from '@/components/usage/usage-tab';
 import { useChat } from '@/hooks/use-chat';
 import { useConversations } from '@/hooks/use-conversations';
 
@@ -108,6 +109,7 @@ export default function Home() {
             scopeCollectionId={activeScope}
             onScopeChange={setScopeCollectionId}
             onSend={(text) => void chat.send(text)}
+            onFeedback={chat.setFeedback}
             onOpenDocument={(documentId) => goToTab('documents', documentId)}
           />
           <IngestTab
@@ -116,6 +118,7 @@ export default function Home() {
             onIngested={refreshCollections}
             onOpenDocument={(documentId) => goToTab('documents', documentId)}
           />
+          {activeTab === 'usage' && <UsageTab />}
           {activeTab === 'documents' && (
             <DocumentsTab
               collections={collections}
