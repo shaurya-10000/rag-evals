@@ -9,7 +9,18 @@ from google.genai import errors as genai_errors
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from rag.api import conversations, documents, ingest, ingest_jobs, query, title
+from rag.api import (
+    conversations,
+    documents,
+    feedback,
+    ingest,
+    ingest_jobs,
+    query,
+    search,
+    shares,
+    title,
+    usage,
+)
 from rag.api.auth import router as auth_router
 from rag.api.deps import get_reranker, limiter
 from rag.db import engine
@@ -40,6 +51,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # ty
 app.include_router(auth_router)
 app.include_router(ingest.router)
 app.include_router(ingest_jobs.router)
+app.include_router(feedback.router)
+app.include_router(search.router)
+app.include_router(shares.router)
+app.include_router(usage.router)
 app.include_router(query.router)
 app.include_router(title.router)
 app.include_router(documents.router)

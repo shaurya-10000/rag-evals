@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -195,6 +196,12 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     # Snapshot of the retrieved chunks (incl. document id/title) shown as citations.
     sources: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    # The standalone query a follow-up was rewritten into, and whether nothing relevant was found.
+    rewritten_query: Mapped[str | None] = mapped_column(Text, nullable=True)
+    refused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Thumbs on an answer: 1 = helpful, -1 = not helpful.
+    feedback: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    feedback_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
@@ -236,3 +243,27 @@ class IngestJob(Base):
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SharedChat(Base):
+    """A public, read-only snapshot of a conversation, reachable through an unguessable token."""
+
+    __tablename__ = "shared_chats"
+    __table_args__ = (UniqueConstraint("conversation_id", name="uq_shared_chats_conversation"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
+    )
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    snapshot: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )

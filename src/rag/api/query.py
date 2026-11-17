@@ -35,6 +35,7 @@ logger = logging.getLogger("rag.api.query")
 router = APIRouter()
 
 RERANK_CANDIDATES = int(os.getenv("RERANK_CANDIDATES", "10"))
+QUERY_RATE_PER_MINUTE = 5
 
 
 def _source_payload(chunk: Chunk) -> dict[str, Any]:
@@ -59,19 +60,30 @@ def _history(conversation: Conversation | None) -> list[HistoryMessage]:
 
 def _persist_assistant_message(
     bind: Engine | Connection,
+    message_id: uuid.UUID,
     conversation_id: uuid.UUID,
     content: str,
     sources: list[dict[str, Any]],
     request_id: str,
-) -> None:
+    rewritten_query: str | None,
+    refused: bool,
+) -> bool:
     """Save the answer with its own session: the request-scoped one may already be closed."""
     try:
         with Session(bind) as session:
             ConversationRepository(session).add_message(
-                conversation_id, "assistant", content, sources
+                conversation_id,
+                "assistant",
+                content,
+                sources,
+                rewritten_query=rewritten_query,
+                refused=refused,
+                message_id=message_id,
             )
     except Exception:
         logger.exception("[%s] Failed to persist assistant message", request_id)
+        return False
+    return True
 
 
 def _ms(start: float, end: float) -> int:
@@ -79,7 +91,7 @@ def _ms(start: float, end: float) -> int:
 
 
 @router.post("/query")
-@limiter.limit("5/minute")
+@limiter.limit(f"{QUERY_RATE_PER_MINUTE}/minute")
 def query(
     request: Request,
     payload: QueryRequest,
@@ -132,13 +144,30 @@ def query(
 
     sources = [_source_payload(c) for c in final_chunks]
     bind = db.get_bind()
+    message_id = uuid.uuid4()
+    rewritten_query = search_query if rewritten else None
 
     # Persist the question only once retrieval succeeded, so a failed lookup leaves no orphan.
     if conversation_id is not None:
         conversations.add_message(conversation_id, "user", payload.query, [])
 
+    def persist(answer: str) -> bool:
+        if conversation_id is None or not answer:
+            return False
+        return _persist_assistant_message(
+            bind,
+            message_id,
+            conversation_id,
+            answer,
+            sources,
+            request_id,
+            rewritten_query,
+            refused,
+        )
+
     def event_generator() -> TypingGenerator[str, None, None]:
         answer_parts: list[str] = []
+        saved = False
         try:
             yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
             try:
@@ -151,6 +180,9 @@ def query(
                 return
             t_generate = time.perf_counter()
 
+            # Save before announcing "done", so the id the client receives already exists.
+            saved = persist("".join(answer_parts))
+
             timings = (
                 f"rewrite={_ms(t_start, t_rewrite)}ms "
                 f"retrieve={_ms(t_rewrite, t_retrieve)}ms "
@@ -161,15 +193,15 @@ def query(
             done = {
                 "type": "done",
                 "timings": timings,
-                "rewritten_query": search_query if rewritten else None,
+                "rewritten_query": rewritten_query,
                 "refused": refused,
+                "message_id": str(message_id) if saved else None,
             }
             yield f"data: {json.dumps(done)}\n\n"
         finally:
-            # Runs on success, on stream errors and when the client disconnects mid-answer.
-            answer = "".join(answer_parts)
-            if conversation_id is not None and answer:
-                _persist_assistant_message(bind, conversation_id, answer, sources, request_id)
+            # Covers stream errors and clients that disconnect mid-answer.
+            if not saved:
+                persist("".join(answer_parts))
 
     return StreamingResponse(
         event_generator(),

@@ -117,6 +117,10 @@ def _message_out(
         content=message.content,
         sources=[_enrich_source(s, chunk_to_doc, titles) for s in (message.sources or [])],
         created_at=message.created_at,
+        rewritten_query=message.rewritten_query,
+        refused=message.refused,
+        feedback=message.feedback,
+        feedback_comment=message.feedback_comment,
     )
 
 
