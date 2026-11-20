@@ -98,11 +98,13 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
-      - name: Type check
-        run: npx tsc --noEmit
       - name: Build
         run: npm run build
         env:
           JWT_SECRET: ci-placeholder-secret
           RAG_API_KEY: ci-placeholder-key
           BACKEND_URL: http://127.0.0.1:8000
+      # Next generates the route types (LayoutProps and friends) during the build,
+      # so the type check has to run after it.
+      - name: Type check
+        run: npx tsc --noEmit
