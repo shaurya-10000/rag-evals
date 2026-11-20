@@ -28,6 +28,7 @@ from rag.generate.generator import Generator
 from rag.generate.relevance import should_refuse
 from rag.generate.reranker import Reranker
 from rag.generate.rewriter import MAX_HISTORY_MESSAGES, HistoryMessage, QueryRewriter
+from rag.observability import get_request_id
 from rag.retrieve.embedder import Embedder
 from rag.retrieve.retriever import Retriever
 
@@ -103,7 +104,7 @@ def query(
     _: str = Depends(verify_api_key),
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
-    request_id = str(uuid.uuid4())[:8]
+    request_id = get_request_id()
     logger.info(f"[{request_id}] Query from user={current_user.username}: '{payload.query[:60]}'")
 
     conversation_id = payload.conversation_id
@@ -189,10 +190,33 @@ def query(
                 f"rerank={_ms(t_retrieve, t_rerank)}ms "
                 f"generate={_ms(t_rerank, t_generate)}ms"
             )
-            logger.info(f"[{request_id}] Done. {timings}")
+            timings_ms = {
+                "rewrite": _ms(t_start, t_rewrite),
+                "retrieve": _ms(t_rewrite, t_retrieve),
+                "rerank": _ms(t_retrieve, t_rerank),
+                "generate": _ms(t_rerank, t_generate),
+                "total": _ms(t_start, t_generate),
+            }
+            logger.info(
+                "answer_complete",
+                extra={
+                    "fields": {
+                        "user_id": str(current_user.id),
+                        "conversation_id": str(conversation_id) if conversation_id else None,
+                        "message_id": str(message_id),
+                        "refused": refused,
+                        "best_rerank_score": best_score,
+                        "sources": len(sources),
+                        "answer_chars": len("".join(answer_parts)),
+                        "persisted": saved,
+                        "timings_ms": timings_ms,
+                    }
+                },
+            )
             done = {
                 "type": "done",
                 "timings": timings,
+                "timings_ms": timings_ms,
                 "rewritten_query": rewritten_query,
                 "refused": refused,
                 "message_id": str(message_id) if saved else None,

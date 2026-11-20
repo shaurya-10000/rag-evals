@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { LogOut, User as UserIcon, Sun, Moon, Monitor, ChevronDown, Volume2 } from 'lucide-react';
+import { LogOut, User as UserIcon, Sun, Moon, Monitor, ChevronDown, Volume2, Settings } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 // Helper to safely read localStorage without triggering hydration errors
 const subscribe = () => () => {};
@@ -186,6 +187,13 @@ export function UserMenu() {
 
           {/* Menu Items */}
           <div className="p-1">
+            <Link
+              href="/settings"
+              onClick={() => setOpen(false)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 rounded-md transition-colors text-left"
+            >
+              <Settings className="w-4 h-4" /> Manage account
+            </Link>
             <button onClick={handleLogout} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md transition-colors text-left">
               <LogOut className="w-4 h-4" /> Sign Out
             </button>

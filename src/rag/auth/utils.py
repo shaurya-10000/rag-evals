@@ -6,6 +6,7 @@ from jose import JWTError, jwt
 from pwdlib import PasswordHash
 from sqlalchemy.orm import Session
 
+from rag.auth import sessions
 from rag.config.settings import settings
 from rag.db import get_db
 from rag.db_models import User
@@ -21,7 +22,7 @@ def get_password_hash(password: str) -> str:
     return password_hash.hash(password)
 
 
-def create_access_token(user_id: uuid.UUID, email: str) -> str:
+def create_access_token(user_id: uuid.UUID, email: str, session_id: uuid.UUID | None = None) -> str:
     now = datetime.now(UTC)
     payload = {
         "sub": str(user_id),
@@ -29,6 +30,8 @@ def create_access_token(user_id: uuid.UUID, email: str) -> str:
         "iat": int(now.timestamp()),
         "exp": now + timedelta(minutes=settings.JWT_EXPIRES_MINUTES),
     }
+    if session_id is not None:
+        payload["sid"] = str(session_id)
     token = jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
     return str(token)
 
@@ -65,4 +68,12 @@ def get_current_user(
         issued_at = payload.get("iat")
         if not isinstance(issued_at, int) or issued_at < int(user.password_changed_at.timestamp()):
             raise HTTPException(status_code=401, detail="Session expired. Please sign in again.")
+
+    # Tokens issued once sessions existed carry a session id that can be revoked.
+    session_id = payload.get("sid")
+    if session_id is not None:
+        if not sessions.touch_if_active(db, user.id, session_id):
+            raise HTTPException(status_code=401, detail="Session expired. Please sign in again.")
+        request.state.session_id = str(session_id)
+    request.state.user_id = str(user.id)
     return user

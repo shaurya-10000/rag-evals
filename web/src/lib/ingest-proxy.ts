@@ -1,6 +1,10 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { getApiKey, getBackendUrl } from './server-env';
+import { forwardHeaders } from './forward-headers';
+import { WEB_UPLOAD_LIMIT_MB } from './limits';
+
+const MAX_BODY_BYTES = (WEB_UPLOAD_LIMIT_MB + 0.2) * 1024 * 1024;
 
 /** Forward an ingest request (JSON or multipart) to FastAPI with the API key and auth cookie. */
 export async function proxyIngest(req: Request, backendPath: string): Promise<NextResponse> {
@@ -9,7 +13,16 @@ export async function proxyIngest(req: Request, backendPath: string): Promise<Ne
     return NextResponse.json({ error: 'Server misconfigured: RAG_API_KEY is not set' }, { status: 500 });
   }
 
-  const headers: Record<string, string> = { 'X-API-Key': apiKey };
+  // Vercel refuses bodies above ~4.5 MB before this code runs; answer clearly if one still arrives.
+  const declared = Number(req.headers.get('content-length') ?? 0);
+  if (declared > MAX_BODY_BYTES) {
+    return NextResponse.json(
+      { error: `That file is too large to upload here (max ${WEB_UPLOAD_LIMIT_MB} MB).` },
+      { status: 413 }
+    );
+  }
+
+  const headers: Record<string, string> = { ...forwardHeaders(req), 'X-API-Key': apiKey };
   let body: BodyInit;
   try {
     // Pasted text and URLs are JSON, file uploads are multipart. The backend accepts both.

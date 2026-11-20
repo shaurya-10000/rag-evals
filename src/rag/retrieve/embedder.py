@@ -8,6 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TypeVar
 
+import httpx
 from google import genai
 from google.genai import errors, types
 
@@ -21,6 +22,9 @@ T = TypeVar("T")
 RETRYABLE_CODES = {429, 500, 502, 503, 504}
 
 EMBEDDING_DIM = 768
+
+# A hung embedding call must fail (and be retried) instead of stalling an import or an eval.
+EMBED_TIMEOUT_MS = int(os.environ.get("EMBED_TIMEOUT_MS", "30000"))
 
 # <repo root>/eval/fixtures/embeddings.json (src/rag/retrieve/embedder.py -> parents[3])
 DEFAULT_FIXTURE_PATH = Path(__file__).resolve().parents[3] / "eval" / "fixtures" / "embeddings.json"
@@ -66,7 +70,10 @@ class Embedder:
         if mock:
             self._fixture = self._load_fixture(fixture_path)
         else:
-            self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+            self.client = genai.Client(
+                api_key=settings.GEMINI_API_KEY,
+                http_options=types.HttpOptions(timeout=EMBED_TIMEOUT_MS),
+            )
 
     @staticmethod
     def _load_fixture(path: Path | None) -> dict[str, list[float]]:
@@ -82,21 +89,27 @@ class Embedder:
         return data
 
     def _with_retry(self, call: Callable[[], T]) -> T:
-        """Run an API call, retrying transient failures with exponential backoff."""
+        """Run an API call, retrying transient failures (and timeouts) with exponential backoff."""
         for attempt in range(1, self.max_attempts + 1):
             try:
                 return call()
-            except errors.APIError as e:
-                retryable = e.code in RETRYABLE_CODES
+            except (errors.APIError, httpx.TransportError) as e:
+                server_delay: float | None = None
+                if isinstance(e, errors.APIError):
+                    retryable = e.code in RETRYABLE_CODES
+                    label: object = e.code
+                    server_delay = _server_retry_delay(e)
+                else:  # timeouts and dropped connections
+                    retryable = True
+                    label = type(e).__name__
                 if not retryable or attempt == self.max_attempts:
                     raise
                 delay = self.base_delay * (2 ** (attempt - 1))
-                server_delay = _server_retry_delay(e)
                 if server_delay is not None:
                     delay = min(max(delay, server_delay + 0.5), MAX_RETRY_DELAY)
                 logger.warning(
                     "embedding failed code=%s attempt=%d/%d, retrying in %.1fs",
-                    e.code,
+                    label,
                     attempt,
                     self.max_attempts,
                     delay,

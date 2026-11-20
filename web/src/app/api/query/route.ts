@@ -1,4 +1,5 @@
 import { getApiKey, getBackendUrl } from '../../../lib/server-env';
+import { forwardHeaders } from '@/lib/forward-headers';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
@@ -17,6 +18,7 @@ export async function POST(req: Request) {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
+        ...forwardHeaders(req),
         'X-API-Key': apiKey,
         'Cookie': `access_token=${accessToken}`
       },

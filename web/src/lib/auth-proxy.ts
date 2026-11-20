@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getBackendUrl } from './server-env';
+import { getApiKey, getBackendUrl } from './server-env';
+import { forwardHeaders } from './forward-headers';
 
 /** Forward a JSON POST to the FastAPI auth backend, passing through any Set-Cookie. */
 export async function proxyAuth(req: Request, backendPath: string): Promise<NextResponse> {
@@ -13,7 +14,12 @@ export async function proxyAuth(req: Request, backendPath: string): Promise<Next
   try {
     const response = await fetch(getBackendUrl() + backendPath, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...forwardHeaders(req),
+        'X-API-Key': getApiKey() ?? '',
+        ...(req.headers.get('cookie') ? { Cookie: req.headers.get('cookie') as string } : {}),
+      },
       body: JSON.stringify(body),
     });
 

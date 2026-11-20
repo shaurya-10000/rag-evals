@@ -12,7 +12,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from rag.api.deps import limiter
-from rag.auth import google, tokens
+from rag.auth import google, sessions, tokens
 from rag.auth.utils import create_access_token, get_password_hash, verify_password
 from rag.config.settings import settings
 from rag.db import get_db
@@ -69,6 +69,14 @@ def _set_token_cookie(response: Response, token: str) -> None:
         samesite="lax",
         max_age=settings.JWT_EXPIRES_MINUTES * 60,
     )
+
+
+def _start_session(db: Session, request: Request, response: Response, user: User) -> None:
+    """Record this login as a revocable session and set the cookie that carries its id."""
+    session = sessions.create_session(
+        db, user.id, sessions.client_user_agent(request), sessions.client_ip(request)
+    )
+    _set_token_cookie(response, create_access_token(user.id, user.email, session.id))
 
 
 def _find_user_by_email(db: Session, email: str) -> User | None:
@@ -153,12 +161,17 @@ def login(
     if not user.email_verified:
         raise HTTPException(status_code=403, detail="email_not_verified")
 
-    _set_token_cookie(response, create_access_token(user.id, user.email))
+    _start_session(db, request, response, user)
     return {"status": "logged_in", "email": user.email, "username": user.username}
 
 
 @router.post("/logout")
-def logout(response: Response) -> dict[str, str]:
+def logout(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),  # noqa: B008
+) -> dict[str, str]:
+    sessions.revoke_from_request(db, request)
     response.delete_cookie("access_token")
     return {"status": "logged_out"}
 
@@ -361,5 +374,5 @@ def oauth_exchange(
     user = db.get(User, user_id) if user_id else None
     if user is None:
         raise HTTPException(status_code=400, detail="Sign-in expired. Please try again.")
-    _set_token_cookie(response, create_access_token(user.id, user.email))
+    _start_session(db, request, response, user)
     return {"status": "logged_in", "email": user.email, "username": user.username}

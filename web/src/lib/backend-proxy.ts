@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { getApiKey, getBackendUrl } from './server-env';
+import { forwardHeaders } from './forward-headers';
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
@@ -13,6 +14,7 @@ export async function backendFetch(req: Request, path: string, method: Method): 
 
   const cookieStore = await cookies();
   const headers: Record<string, string> = {
+    ...forwardHeaders(req),
     'X-API-Key': apiKey,
     Cookie: `access_token=${cookieStore.get('access_token')?.value || ''}`,
   };
@@ -48,7 +50,10 @@ export async function backendFetch(req: Request, path: string, method: Method): 
       const detail = data.detail;
       const message =
         typeof detail === 'string' ? detail : typeof data.error === 'string' ? data.error : 'Request failed';
-      return NextResponse.json({ error: message }, { status: response.status });
+      const failed = NextResponse.json({ error: message }, { status: response.status });
+      // A rejected session (revoked or expired) must not linger: the next navigation goes to sign-in.
+      if (response.status === 401) failed.cookies.delete('access_token');
+      return failed;
     }
     return NextResponse.json(data);
   } catch (error) {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { FileText, Layers, Loader2, MessageSquare, ThumbsUp } from 'lucide-react';
 import type { Usage } from '@/lib/usage-types';
+import { WEB_UPLOAD_LIMIT_MB } from '@/lib/limits';
 import { ActivityChart } from './activity-chart';
 import { StatCard } from './stat-card';
 
@@ -123,7 +124,7 @@ function UsageReport({ usage }: { usage: Usage }) {
           <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mb-3">Limits</h3>
           <dl className="space-y-2 text-xs md:text-sm">
             <div className="flex justify-between"><dt className="text-neutral-500">Questions</dt><dd>{limits.questions_per_minute} per minute</dd></div>
-            <div className="flex justify-between"><dt className="text-neutral-500">Upload size</dt><dd>{limits.max_upload_mb} MB</dd></div>
+            <div className="flex justify-between"><dt className="text-neutral-500">Upload size</dt><dd>{Math.min(limits.max_upload_mb, WEB_UPLOAD_LIMIT_MB)} MB</dd></div>
             <div className="flex justify-between"><dt className="text-neutral-500">Document text</dt><dd>{number(limits.max_document_chars)} characters</dd></div>
             <div className="flex justify-between"><dt className="text-neutral-500">Imports at once</dt><dd>{limits.max_active_imports}</dd></div>
           </dl>

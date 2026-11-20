@@ -10,6 +10,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from rag.api import (
+    account,
     conversations,
     documents,
     feedback,
@@ -25,11 +26,9 @@ from rag.api.auth import router as auth_router
 from rag.api.deps import get_reranker, limiter
 from rag.db import engine
 from rag.ingest.jobs import fail_interrupted_jobs, shutdown_workers
+from rag.observability import RequestContextMiddleware, configure_logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+configure_logging()
 logger = logging.getLogger("rag.api")
 
 
@@ -46,9 +45,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(title="RAG Evals API", version="0.1.0", lifespan=lifespan)
 app.state.limiter = limiter
+app.add_middleware(RequestContextMiddleware)
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 app.include_router(auth_router)
+app.include_router(account.router)
 app.include_router(ingest.router)
 app.include_router(ingest_jobs.router)
 app.include_router(feedback.router)

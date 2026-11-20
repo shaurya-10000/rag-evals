@@ -5,15 +5,15 @@ from functools import lru_cache
 from fastapi import HTTPException, Security
 from fastapi.security import APIKeyHeader
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 
+from rag.api.ratelimit import rate_limit_key
 from rag.config.settings import settings
 from rag.generate.generator import Generator
 from rag.generate.reranker import Reranker
 from rag.generate.rewriter import QueryRewriter
 from rag.retrieve.embedder import Embedder
 
-limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+limiter = Limiter(key_func=rate_limit_key, default_limits=["60/minute"])
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
