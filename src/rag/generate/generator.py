@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from collections.abc import Generator as TypingGenerator
 
@@ -11,10 +12,19 @@ from rag.db_models import Chunk
 logger = logging.getLogger(__name__)
 
 
+def _models_from_env() -> list[str]:
+    """GENERATION_MODELS="a,b" replaces the fallback chain, e.g. while one model is overloaded."""
+    return [m.strip() for m in os.getenv("GENERATION_MODELS", "").split(",") if m.strip()]
+
+
 class Generator:
     def __init__(self, mock: bool = False):
         self.mock = mock
-        self.models = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash"]
+        self.models = _models_from_env() or [
+            "gemini-3.8-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.6-flash",
+        ]
         if not mock:
             self.client = genai.Client(
                 api_key=settings.GEMINI_API_KEY,

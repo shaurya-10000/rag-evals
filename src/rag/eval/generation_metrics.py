@@ -6,6 +6,7 @@ part of the CI gate.
 
 import json
 import logging
+import os
 from collections.abc import Sequence
 from typing import Any
 
@@ -16,7 +17,12 @@ from rag.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-JUDGE_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
+# EVAL_JUDGE_MODELS="a,b" replaces the judge fallback chain.
+JUDGE_MODELS = [
+    m.strip()
+    for m in os.getenv("EVAL_JUDGE_MODELS", "gemini-3.8-flash,gemini-3.5-flash-lite").split(",")
+    if m.strip()
+]
 JUDGE_TIMEOUT_MS = 30000
 
 FAITHFULNESS_PROMPT = """You are a strict fact-checker. Break the ANSWER into its individual
