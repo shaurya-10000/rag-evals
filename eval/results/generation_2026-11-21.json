@@ -1,0 +1,460 @@
+{
+  "summary": {
+    "questions_planned": 51,
+    "questions_done": 51,
+    "errors": 5,
+    "refusal_threshold": -8.0,
+    "faithfulness_mean": 0.992,
+    "answer_relevance_mean": 0.831,
+    "false_refusal_rate": 0.156,
+    "unanswerable_refusal_rate": 1.0
+  },
+  "records": [
+    {
+      "question": "What database is used to store vectors?",
+      "answerable": true,
+      "best_score": 1.560524344444275,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "## \ud83d\uddc4\ufe0f Vector Database Information\n\nBased on the provided context, here are the details regarding the vector storage:\n\n* **Database Used:** **Postgres** combined with the **`pgvector`** extension [1].\n* **Capacity:** Capable of handling **millions of embeddings** [1].\n* **Key Benefits:** Provides **transactional safety** and avoids the use of an in-memory vector store [1]."
+    },
+    {
+      "question": "What is the frontend framework used in the stack?",
+      "answerable": true,
+      "best_score": -2.093902826309204,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "## \ud83d\ude80 Frontend Technology Stack\n\nBased on the provided context, the frontend framework and hosting details are as follows:\n\n* **Frontend Framework/Platform:** **Next.js** (hosted on **Vercel**) [1]"
+    },
+    {
+      "question": "What is the current Recall@3 score?",
+      "answerable": true,
+      "best_score": 4.7740278244018555,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "### \ud83d\udcca Performance Metric\n\nBased on the provided information, here is the current score:\n\n* **Recall@3 Score:** **0.77 (77%)** [1]"
+    },
+    {
+      "question": "What is the current MRR score?",
+      "answerable": true,
+      "best_score": 4.086163520812988,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "## \ud83d\udcca MRR Score Overview\n\nBased on the provided information, here is the current MRR score:\n\n* **MRR Score:** **0.77** (or **77%**) [1]"
+    },
+    {
+      "question": "Which embedding model is used?",
+      "answerable": true,
+      "best_score": 0.542303740978241,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "## Embedding Model Information \ud83e\udd16\n\nBased on the provided context, the embedding model used is:\n\n* **Gemini Embedder** (768 dimensions) [1]"
+    },
+    {
+      "question": "What is the chunking strategy called?",
+      "answerable": true,
+      "best_score": -0.8393175601959229,
+      "refused": false,
+      "faithfulness": null,
+      "answer_relevance": null,
+      "error": "Error: All LLM models are currently unavailable. Please try again later."
+    },
+    {
+      "question": "What language is the backend written in?",
+      "answerable": true,
+      "best_score": -5.551402568817139,
+      "refused": false,
+      "faithfulness": null,
+      "answer_relevance": null,
+      "answer": "Based on the provided context, the exact programming language used for the backend (FastAPI Server) is not explicitly mentioned. However, **FastAPI** is a modern, high-performance web framework for building APIs with **Python**."
+    },
+    {
+      "question": "What is the name of the LLM provider?",
+      "answerable": true,
+      "best_score": -5.367894172668457,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "\ud83e\udd16 Based on the provided context, the specific name of the LLM provider is **not mentioned**. \n\nHowever, the context highlights the following details regarding the AI system:\n* \ud83d\udee1\ufe0f The API is designed so that it **won't crash on LLM outage**.\n* \ud83d\udcda **The AI cites its sources**. \n\n[1]"
+    },
+    {
+      "question": "What is the CI gate threshold?",
+      "answerable": true,
+      "best_score": -10.748931884765625,
+      "refused": true,
+      "faithfulness": null,
+      "answer_relevance": null
+    },
+    {
+      "question": "What is the name of the reranker?",
+      "answerable": true,
+      "best_score": 3.3344526290893555,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "Based on the provided context, here is the information regarding the reranker:\n\n## \ud83c\udff7\ufe0f Reranker Identification\n\nAccording to the available sources, the reranker is identified as a **Cross-Encoder Reranker** [1]. Additionally, its implementation can be found in the source code file path: `src/rag/generate/reranker.py` [3]."
+    },
+    {
+      "question": "What is the name of the hybrid search algorithm?",
+      "answerable": true,
+      "best_score": 5.031322956085205,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "Based on the provided context, the name or components of the hybrid search approach mentioned is **BM25 + Vector** [1]."
+    },
+    {
+      "question": "What is the name of the streaming protocol?",
+      "answerable": true,
+      "best_score": -7.737933158874512,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "Based on the provided context, the name of the streaming protocol is:\n\n* **Server-Sent Events (SSE)** [1]"
+    },
+    {
+      "question": "What is the name of the test file for the eval runner?",
+      "answerable": true,
+      "best_score": 2.844623327255249,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "## \ud83e\uddea Test File Information\n\nBased on the provided context, the name of the test file for the eval runner is:\n\n* **`test_eval_runner.py`** [1]"
+    },
+    {
+      "question": "What is the name of the file that contains the gold set?",
+      "answerable": true,
+      "best_score": -0.7279348373413086,
+      "refused": false,
+      "faithfulness": null,
+      "answer_relevance": null,
+      "error": "Error: All LLM models are currently unavailable. Please try again later."
+    },
+    {
+      "question": "What is the name of the pipeline that handles document ingestion?",
+      "answerable": true,
+      "best_score": 2.675490379333496,
+      "refused": false,
+      "faithfulness": null,
+      "answer_relevance": null,
+      "error": "Error: All LLM models are currently unavailable. Please try again later."
+    },
+    {
+      "question": "What is the name of the pipeline that handles querying?",
+      "answerable": true,
+      "best_score": -1.8999511003494263,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "### \ud83d\udd0d Retrieval Pipeline Answer\n\nBased on the provided context, the pipeline that handles querying is the **Retrieval Pipeline** [1]."
+    },
+    {
+      "question": "What is the name of the pipeline that handles generation?",
+      "answerable": true,
+      "best_score": 2.8353431224823,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "## \ud83d\ude80 Generation Pipeline\n\nBased on the provided context, the name of the pipeline that handles generation is:\n\n* **Generation Pipeline** [1]"
+    },
+    {
+      "question": "What is the name of the database extension used?",
+      "answerable": true,
+      "best_score": -9.217731475830078,
+      "refused": true,
+      "faithfulness": null,
+      "answer_relevance": null
+    },
+    {
+      "question": "What is the name of the type checker used?",
+      "answerable": true,
+      "best_score": -9.14173698425293,
+      "refused": true,
+      "faithfulness": null,
+      "answer_relevance": null
+    },
+    {
+      "question": "What is the name of the linter used?",
+      "answerable": true,
+      "best_score": -10.336957931518555,
+      "refused": true,
+      "faithfulness": null,
+      "answer_relevance": null
+    },
+    {
+      "question": "Why did we choose Postgres over an in-memory vector store?",
+      "answerable": true,
+      "best_score": 5.0990118980407715,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "## Why Postgres + `pgvector`? \ud83d\udc18\n\nBased on the provided information, the choice was made to use **Postgres + `pgvector`** instead of an in-memory vector store for a specific key reason:\n\n* **Transactional Safety & Scale:** Postgres + `pgvector` is capable of handling **millions of embeddings** while maintaining **transactional safety** [1]."
+    },
+    {
+      "question": "How do we prevent duplicate documents from being ingested twice?",
+      "answerable": true,
+      "best_score": -1.1283031702041626,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "## \ud83d\udee1\ufe0f Duplicate Prevention\n\nBased on the provided information, duplicate ingestion is prevented by utilizing a **`content_hash` unique constraint** on the `documents` table [1]."
+    },
+    {
+      "question": "What happens if the LLM API is down?",
+      "answerable": true,
+      "best_score": 4.101036548614502,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.5,
+      "answer": "Based on the provided information, here is what happens if the LLM API is down:\n\n* \ud83d\udee1\ufe0f **System Stability:** The API **will not crash** during an LLM outage [1].\n* \ud83d\udcda **Source Citation:** The AI **cites its sources** [1]."
+    },
+    {
+      "question": "How much latency does the cross-encoder add?",
+      "answerable": true,
+      "best_score": -3.7827625274658203,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "## \u23f1\ufe0f Cross-Encoder Reranker Latency\n\nBased on the provided context, there is no specific measurement, value, or time given regarding how much latency the cross-encoder adds [1]. The context only names the concept (\"Cross-Encoder Reranker\") without providing performance metrics, speed details, or latency figures [1]."
+    },
+    {
+      "question": "Can I use images in this RAG system?",
+      "answerable": true,
+      "best_score": -6.283205509185791,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "Based on the provided context, there is no mention of image support or multimodal capabilities in the RAG system (`src/rag/api/main.py`) [1]. \n\nHowever, looking at the available project structure from the context, the system is set up as a **RAG (Retrieval-Augmented Generation) API application** centered around Python (`src/rag/api/main.py`) [1]. \n\n### \ud83d\udee0\ufe0f What we know about the system:\n* **Type:** RAG API backend [1]\n* **Location:** `src/rag/api/main.py` [1]\n\nIf you need to process images, you would typically need to check if the underlying vector database, embedding models, and LLM integrated within the `src/rag` pipeline support multimodal inputs, as the provided file path only indicates the API entry point [1]."
+    },
+    {
+      "question": "What is the name of the vector dimension size?",
+      "answerable": true,
+      "best_score": -5.552961349487305,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "Based on the provided context, there is no specific name mentioned for the vector dimension size. However, the context simply refers to it as a **Vector** [1]."
+    },
+    {
+      "question": "What is the name of the search method that uses keyword matching?",
+      "answerable": true,
+      "best_score": -4.614203929901123,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.0,
+      "answer": "Based on the provided context, here is the answer to your question:\n\n## Search Method \ud83d\udd0d\n\n* **Hybrid Search** [1]"
+    },
+    {
+      "question": "What is the name of the search method that uses vector similarity?",
+      "answerable": true,
+      "best_score": 0.23654477298259735,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "Based on the provided context, here is the answer regarding the search method:\n\n## \ud83d\udd0d Search Method\n\nThe search method mentioned that utilizes vector similarity is part of **Hybrid Search**, which combines **BM25** and **Vector** search techniques [1]."
+    },
+    {
+      "question": "What is the name of the search method that combines both?",
+      "answerable": true,
+      "best_score": -0.9018446803092957,
+      "refused": false,
+      "faithfulness": null,
+      "answer_relevance": 1.0,
+      "answer": "Based on the provided context, the name of the search method that combines both is **Hybrid Search** [1]."
+    },
+    {
+      "question": "What is the name of the file that contains the document ingestion code?",
+      "answerable": true,
+      "best_score": -0.9892489910125732,
+      "refused": false,
+      "faithfulness": null,
+      "answer_relevance": null,
+      "error": "Error: All LLM models are currently unavailable. Please try again later."
+    },
+    {
+      "question": "What is the name of the file that contains the retriever code?",
+      "answerable": true,
+      "best_score": -1.9594649076461792,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "### \ud83d\udcc4 Retriever Code File\n\nBased on the provided context, the name of the file that contains the retriever code is:\n\n* **`src/rag/retrieve/retriever.py`** [1] \ud83d\udee0\ufe0f"
+    },
+    {
+      "question": "What is the name of the file that contains the generator code?",
+      "answerable": true,
+      "best_score": -2.8355135917663574,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "## \ud83d\udcc1 Generator File Information\n\nBased on the provided context, the name of the file that contains the generator code is:\n\n* **`src/rag/generate/generator.py`** [1]"
+    },
+    {
+      "question": "What is the name of the file that contains the reranker code?",
+      "answerable": true,
+      "best_score": 1.8162587881088257,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.5,
+      "answer": "Based on the provided context, the exact name of the file that contains the reranker code is not explicitly mentioned. However, the context references the following related component:\n\n* **Cross-Encoder Reranker** [1]"
+    },
+    {
+      "question": "What is the name of the file that contains the API code?",
+      "answerable": true,
+      "best_score": -3.352023124694824,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "Based on the provided context, here is the answer to your question:\n\n## \ud83d\udcc1 API Code File Name\n\n* The file that contains the API code is: **`src/rag/api/main.py`** [1] \ud83d\ude80"
+    },
+    {
+      "question": "What is the name of the file that contains the database models?",
+      "answerable": true,
+      "best_score": -6.60528039932251,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "Based on the provided context, here is the information regarding the database models file:\n\n## \ud83d\udcc1 Database Models File\n\n* **File Name:** `db_models.py` [1]\n* **File Path:** `src/rag/db_models.py` [1]"
+    },
+    {
+      "question": "What two search methods are combined in the retrieval pipeline?",
+      "answerable": true,
+      "best_score": 0.821956992149353,
+      "refused": false,
+      "faithfulness": null,
+      "answer_relevance": null,
+      "answer": "Based on the provided context, the exact details regarding the two search methods combined in the retrieval pipeline are not explicitly listed. However, based on the title of the provided text, the document discusses a **Retrieval Pipeline** [1]."
+    },
+    {
+      "question": "What is the name of the monitoring tool used in the eval harness?",
+      "answerable": true,
+      "best_score": -2.0728063583374023,
+      "refused": false,
+      "faithfulness": null,
+      "answer_relevance": null,
+      "error": "Error: All LLM models are currently unavailable. Please try again later."
+    },
+    {
+      "question": "How does the system handle both text and images during ingestion?",
+      "answerable": true,
+      "best_score": -6.055352210998535,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.5,
+      "answer": "Based on the provided context, here is the information regarding the ingestion pipeline:\n\n## \ud83d\udd04 Ingestion Pipeline \n\n* \ud83d\udcc4 **Text and Images:** The provided context specifically mentions an **Ingestion Pipeline** [1], but does not contain detailed procedural steps on how the system specifically processes or handles text versus images during this phase. \n\n* \ud83d\udca1 **Summary:** While specific handling mechanisms are not detailed in the snippet, the system utilizes an ingestion pipeline to process incoming data [1]."
+    },
+    {
+      "question": "What are the two main guarantees for API reliability?",
+      "answerable": true,
+      "best_score": -7.3033528327941895,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.0,
+      "answer": "Based on the provided context, there is no mention of the two main guarantees for API reliability. However, the context references the source code file location for the API:\n\n* **API Source File:** `src/rag/api/main.py` [1]"
+    },
+    {
+      "question": "Which two external services are deployed for this project?",
+      "answerable": true,
+      "best_score": -8.802494049072266,
+      "refused": true,
+      "faithfulness": null,
+      "answer_relevance": null
+    },
+    {
+      "question": "What are the two main types of documents that can be ingested?",
+      "answerable": true,
+      "best_score": -6.040680885314941,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.0,
+      "answer": "Based on the provided context, there is no specific mention of the two main types of documents that can be ingested. \n\nHowever, the context does provide the following detail regarding document ingestion:\n\n* **No duplicate ingestion**: There is a `content_hash` unique constraint on the `documents` table to prevent duplicates [1]."
+    },
+    {
+      "question": "What are the two main evaluation metrics used?",
+      "answerable": true,
+      "best_score": -10.239553451538086,
+      "refused": true,
+      "faithfulness": null,
+      "answer_relevance": null
+    },
+    {
+      "question": "What are the two main testing frameworks used?",
+      "answerable": true,
+      "best_score": -8.727822303771973,
+      "refused": true,
+      "faithfulness": null,
+      "answer_relevance": null
+    },
+    {
+      "question": "What are the two main languages used in the project?",
+      "answerable": true,
+      "best_score": -6.57922887802124,
+      "refused": false,
+      "faithfulness": 0.75,
+      "answer_relevance": 0.25,
+      "answer": "Based on the provided context, there is no mention of the specific programming languages used in the project, as the only information available is the file path `src/rag/api/main.py` [1]. \n\nHowever, based strictly on the context provided, the project utilizes:\n* **Python** (implied by the `.py` file extension in the file path) [1]\n\nIf you have additional context or files from the project, please share them so I can provide a more complete answer!"
+    },
+    {
+      "question": "What are the two main components of the retrieval pipeline?",
+      "answerable": true,
+      "best_score": 1.4024899005889893,
+      "refused": false,
+      "faithfulness": 1.0,
+      "answer_relevance": 1.0,
+      "answer": "Based on the provided context, the exact details regarding the two main components of the retrieval pipeline are not explicitly listed. \n\nHowever, based on the reference provided in the text regarding the **Retrieval Pipeline** [1], here is a helpful summary of what a typical retrieval pipeline generally entails in information systems:\n\n## \ud83d\udd0d Overview of the Retrieval Pipeline\n\n### Key Functions\n* **Indexing:** Organizing and storing data efficiently so it can be searched rapidly.\n* **Searching/Querying:** Matching user queries against the indexed data to retrieve the most relevant results.\n\n*(Note: The provided context only references the heading \"Retrieval Pipeline\" without detailing its specific components [1].)*"
+    },
+    {
+      "question": "What is the CEO's name?",
+      "answerable": false,
+      "best_score": -9.41425609588623,
+      "refused": true,
+      "faithfulness": null,
+      "answer_relevance": null
+    },
+    {
+      "question": "How many funding rounds has the company raised?",
+      "answerable": false,
+      "best_score": -10.172475814819336,
+      "refused": true,
+      "faithfulness": null,
+      "answer_relevance": null
+    },
+    {
+      "question": "What is the annual revenue of the project?",
+      "answerable": false,
+      "best_score": -8.186623573303223,
+      "refused": true,
+      "faithfulness": null,
+      "answer_relevance": null
+    },
+    {
+      "question": "What is the employee headcount at the company?",
+      "answerable": false,
+      "best_score": -10.21555233001709,
+      "refused": true,
+      "faithfulness": null,
+      "answer_relevance": null
+    },
+    {
+      "question": "Which cloud provider hosts the production database?",
+      "answerable": false,
+      "best_score": -9.131221771240234,
+      "refused": true,
+      "faithfulness": null,
+      "answer_relevance": null
+    },
+    {
+      "question": "What is the name of the current maintainer?",
+      "answerable": false,
+      "best_score": -10.728256225585938,
+      "refused": true,
+      "faithfulness": null,
+      "answer_relevance": null
+    }
+  ]
+}
