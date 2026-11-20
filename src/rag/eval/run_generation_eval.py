@@ -38,6 +38,13 @@ CANDIDATES = 10
 TOP_K = 3
 
 
+def _save_partial(path: str, records: list[dict[str, Any]]) -> None:
+    """Keep progress on disk so an interrupted run is not lost."""
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps({"partial": True, "records": records}, indent=2), encoding="utf-8")
+
+
 def _mean(values: list[float]) -> float | None:
     return round(sum(values) / len(values), 3) if values else None
 
@@ -209,6 +216,7 @@ def main() -> int:
                 "error": f"{type(e).__name__}: {e}"[:300],
             }
         records.append(record)
+        _save_partial(args.output, records)
         write_results(out, records, min_score, len(items))
         print(
             f"[{n}/{len(items)}] answerable={record['answerable']} refused={record['refused']} "
